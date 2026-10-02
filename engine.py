@@ -1,4 +1,3 @@
-
 import datetime
 
 # Data di ancoraggio certa verificata dalla matrice
@@ -57,52 +56,42 @@ def build_21week_schedule_matrix() -> dict:
     matrix = {}
     
     for crew_num in range(1, 22):
-        # Determinazione del gruppo (terzina) e del ruolo di riserva (R1, R2, R3)
         terzina_idx = (crew_num - 1) // 3  # Terzina da 0 a 6
         ruolo_in_terzina = (crew_num - 1) % 3  # 0 -> R1, 1 -> R2, 2 -> R3
         tipo_riserva = f"R{ruolo_in_terzina + 1}"
         
-        # Le 3 settimane di riserva per questa terzina nel ciclo di 21 settimane
+        # Le 3 settimane di riserva per questa terzina nel ciclo di 21 settimane (es. per terzina 2: sett. 2, 9, 16)
         reserve_weeks = {
             terzina_idx,
-            terzina_idx + 7,
-            terzina_idx + 14
+            (terzina_idx + 7) % 21,
+            (terzina_idx + 14) % 21
         }
         
-        # Simulazione sequenziale del ciclo per le 21 settimane (147 giorni)
-        # Troviamo la prima settimana di riserva
-        first_res_week = terzina_idx
-        
-        # Assegnazione delle 21 settimane partendo dal rientro della prima riserva
-        # e propagando il ciclo in avanti (e a ritroso prima della prima riserva)
         full_timeline = [None] * (21 * 7)
         
-        # Posizionamento delle settimane di riserva
+        # 1. Assegna le 3 settimane di riserva
         for res_w in reserve_weeks:
             start_day = res_w * 7
             for d in range(7):
                 full_timeline[start_day + d] = {"mezzo": None, "stato": tipo_riserva}
-        
-        # Propagazione in avanti a partire da ciascun rientro post-riserva
-        # Ogni settimana post-riserva riprende esattamente da RESERVE_RETURN_INDICES[tipo_riserva]
+                
+        # 2. Propaga il ciclo a 18 giorni partendo dal rientro di ciascuna riserva.
+        # Ogni blocco di lavoro dura esattamente 6 settimane (42 giorni).
         return_start_idx = RESERVE_RETURN_INDICES[tipo_riserva]
         
-        for res_w in sorted(list(reserve_weeks)):
+        for res_w in reserve_weeks:
             next_monday = (res_w + 1) * 7
             cycle_cursor = return_start_idx
-            
-            # Avanza di 6 settimane lavorative (42 giorni = 2 cicli completi da 18 + 6 giorni)
             for day_offset in range(6 * 7):
                 curr_day = (next_monday + day_offset) % (21 * 7)
-                if full_timeline[curr_day] is None:
-                    step = BASE_CYCLE_18[cycle_cursor % 18]
-                    full_timeline[curr_day] = {
-                        "mezzo": step["mezzo"],
-                        "stato": step["stato"]
-                    }
-                    cycle_cursor += 1
-        
-        # Memorizzazione nella matrice finale
+                step = BASE_CYCLE_18[cycle_cursor % 18]
+                full_timeline[curr_day] = {
+                    "mezzo": step["mezzo"],
+                    "stato": step["stato"]
+                }
+                cycle_cursor += 1
+                
+        # 3. Popola la matrice
         for w in range(21):
             for d in range(7):
                 day_total = w * 7 + d
