@@ -29,13 +29,13 @@ BASE_CYCLE_18 = [
 ]
 
 # Indici di rientro nel ciclo di 18 giorni dopo la settimana di riserva:
-# - Dopo R1 si riparte da L1 (Giorno 5 -> indice 4)
-# - Dopo R2 si riparte da L3 (Giorno 17 -> indice 16)
-# - Dopo R3 si riparte da L2 (Giorno 11 -> indice 10)
+# - Dopo R1 si riparte da L3 (Giorno 17 -> indice 16)
+# - Dopo R2 si riparte da L2 (Giorno 11 -> indice 10)
+# - Dopo R3 si riparte da L1 (Giorno 5 -> indice 4)
 RESERVE_RETURN_INDICES = {
-    "R1": 4,   # L1
-    "R2": 16,  # L3
-    "R3": 10,  # L2
+    "R1": 16,  # L3
+    "R2": 10,  # L2
+    "R3": 4,   # L1
 }
 
 def get_week_index(target_date: datetime.date) -> int:
@@ -55,33 +55,40 @@ def build_21week_schedule_matrix() -> dict:
     """
     matrix = {}
     
+    # Mappatura della rotazione dei ruoli di riserva per le 3 tranche da 7 settimane
+    # Posizione nella terzina: 0 (primo), 1 (secondo), 2 (terzo)
+    # Tranche: 0 (sett. 1-7), 1 (sett. 8-14), 2 (sett. 15-21)
+    role_rotation = [
+        ["R1", "R2", "R3"],  # Tranche 0: primo=R1, secondo=R2, terzo=R3
+        ["R2", "R3", "R1"],  # Tranche 1: primo=R2, secondo=R3, terzo=R1
+        ["R3", "R1", "R2"]   # Tranche 2: primo=R3, secondo=R1, terzo=R2
+    ]
+    
     for crew_num in range(1, 22):
-        terzina_idx = (crew_num - 1) // 3  # Terzina da 0 a 6
-        ruolo_in_terzina = (crew_num - 1) % 3  # 0 -> R1, 1 -> R2, 2 -> R3
-        tipo_riserva = f"R{ruolo_in_terzina + 1}"
-        
-        # Le 3 settimane di riserva per questa terzina nel ciclo di 21 settimane (es. per terzina 2: sett. 2, 9, 16)
-        reserve_weeks = {
-            terzina_idx,
-            (terzina_idx + 7) % 21,
-            (terzina_idx + 14) % 21
-        }
+        terzina_idx = (crew_num - 1) // 3        # Terzina da 0 a 6
+        pos_in_terzina = (crew_num - 1) % 3     # 0, 1 o 2
         
         full_timeline = [None] * (21 * 7)
         
-        # 1. Assegna le 3 settimane di riserva
-        for res_w in reserve_weeks:
-            start_day = res_w * 7
+        # Le 3 settimane di riserva per questo equipaggio con il relativo tipo dinamico
+        reserve_events = []
+        for tranche in range(3):
+            week_num_idx = terzina_idx + tranche * 7
+            tipo_riserva = role_rotation[tranche][pos_in_terzina]
+            reserve_events.append((week_num_idx, tipo_riserva))
+            
+            # Assegna i 7 giorni di riserva
+            start_day = week_num_idx * 7
             for d in range(7):
                 full_timeline[start_day + d] = {"mezzo": None, "stato": tipo_riserva}
                 
-        # 2. Propaga il ciclo a 18 giorni partendo dal rientro di ciascuna riserva.
-        # Ogni blocco di lavoro dura esattamente 6 settimane (42 giorni).
-        return_start_idx = RESERVE_RETURN_INDICES[tipo_riserva]
-        
-        for res_w in reserve_weeks:
-            next_monday = (res_w + 1) * 7
+        # Propaga il ciclo a 18 giorni partendo dal rientro del lunedì successivo a ciascuna riserva.
+        # Il blocco lavorativo dura esattamente 6 settimane (42 giorni).
+        for week_num_idx, tipo_riserva in reserve_events:
+            next_monday = (week_num_idx + 1) * 7
+            return_start_idx = RESERVE_RETURN_INDICES[tipo_riserva]
             cycle_cursor = return_start_idx
+            
             for day_offset in range(6 * 7):
                 curr_day = (next_monday + day_offset) % (21 * 7)
                 step = BASE_CYCLE_18[cycle_cursor % 18]
@@ -91,7 +98,7 @@ def build_21week_schedule_matrix() -> dict:
                 }
                 cycle_cursor += 1
                 
-        # 3. Popola la matrice
+        # Popola la matrice accessibile per l'interfaccia
         for w in range(21):
             for d in range(7):
                 day_total = w * 7 + d
