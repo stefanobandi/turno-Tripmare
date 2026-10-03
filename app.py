@@ -241,12 +241,14 @@ MESI_BREVI_ITALIANO = [
 def build_cell_info(crew_num: int, target_date: datetime.date, mezzo: int, stato: str) -> tuple:
     """
     Restituisce (titolo, testo_dettagliato) per il popup al tocco e tooltip.
-    Titolo: EQ{crew_num} - {giorno} {mese_abbrev} {anno} (es: EQ8 - 03 ott 2026)
+    Include esplicitamente 'EQ{crew_num} - {data}' anche in testa a details
+    per visualizzarlo sempre in qualsiasi popup o fumetto di sistema.
     """
     mese_abbr = MESI_BREVI_ITALIANO[target_date.month]
     date_formatted = f"{target_date.strftime('%d')} {mese_abbr} {target_date.year}"
-    title = f"EQ{crew_num} - {date_formatted}"
-    lines = []
+    header_line = f"EQ{crew_num} - {date_formatted}"
+    
+    lines = [header_line]
 
     if mezzo:
         dislocazione = "Canale" if mezzo in [1, 2] else "Base"
@@ -272,17 +274,11 @@ def build_cell_info(crew_num: int, target_date: datetime.date, mezzo: int, stato
         else:
             lines.append(f"Stato: {stato}")
 
-    return title, "\n".join(lines)
+    return header_line, "\n".join(lines)
 
-# Inizializzazione session_state sincronizzato
+# Inizializzazione session_state per navigazione temporale
 if "current_date" not in st.session_state:
     st.session_state.current_date = datetime.date.today()
-
-if "date_selector" not in st.session_state:
-    st.session_state.date_selector = st.session_state.current_date
-
-def on_date_picker_change():
-    st.session_state.current_date = st.session_state.date_selector
 
 # Titolo e Avviso Orientamento Dispositivo
 st.title("⚓ Proiezione turno Tripmare")
@@ -318,13 +314,9 @@ with c4:
     else:
         num_weeks = 1
 
-# Barra Navigazione Temporale Ibrida (Pulsanti + Datepicker)
+# Barra Navigazione Temporale Pulita (Solo Pulsanti ◀ Precedente | Oggi | Successivo ▶)
 st.write("---")
-nav1, nav2, nav3, nav4 = st.columns([1, 1, 1, 2])
-
-def set_new_date(new_date: datetime.date):
-    st.session_state.current_date = new_date
-    st.session_state.date_selector = new_date
+nav1, nav2, nav3 = st.columns([1, 1, 1])
 
 def advance_date(direction: int):
     d = st.session_state.current_date
@@ -339,10 +331,10 @@ def advance_date(direction: int):
             year -= 1
         max_days = calendar.monthrange(year, month)[1]
         target_day = min(d.day, max_days)
-        set_new_date(datetime.date(year, month, target_day))
+        st.session_state.current_date = datetime.date(year, month, target_day)
     else:
         delta = datetime.timedelta(weeks=direction * num_weeks)
-        set_new_date(d + delta)
+        st.session_state.current_date = d + delta
 
 with nav1:
     if st.button("◀ Precedente", use_container_width=True):
@@ -351,21 +343,13 @@ with nav1:
 
 with nav2:
     if st.button("Oggi", use_container_width=True):
-        set_new_date(datetime.date.today())
+        st.session_state.current_date = datetime.date.today()
         st.rerun()
 
 with nav3:
     if st.button("Successivo ▶", use_container_width=True):
         advance_date(1)
         st.rerun()
-
-with nav4:
-    st.date_input(
-        "Vai direttamente a data:",
-        key="date_selector",
-        on_change=on_date_picker_change,
-        label_visibility="collapsed"
-    )
 
 # Calcolo delle date da visualizzare
 curr = st.session_state.current_date
@@ -445,7 +429,7 @@ for c_num in crews_to_render:
         mezzo_html = f'<span class="mezzo-num">{mezzo}</span>' if mezzo else ''
         stato_html = f'<span class="stato-text">{stato}</span>'
         
-        # Testo del tooltip / popup modale
+        # Testo del tooltip / popup
         title_info, details_info = build_cell_info(c_num, d, mezzo, stato)
         clean_title = title_info.replace("'", "\\'")
         clean_details = details_info.replace("\n", "\\n").replace("'", "\\'")
