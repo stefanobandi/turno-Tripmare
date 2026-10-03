@@ -236,10 +236,10 @@ MESI_ITALIANO = [
 def build_cell_info(crew_num: int, target_date: datetime.date, mezzo: int, stato: str) -> tuple:
     """
     Restituisce (titolo, testo_dettagliato) per il popup al tocco e tooltip.
-    Senza dettagli su propulsione (VWT/ASD), solo 'Rimorchiatore X in Canale/Base'.
+    Titolo: EQ {crew_num}, {data}
     """
     date_str = target_date.strftime("%d/%m/%Y")
-    title = f"Equipaggio {crew_num} • {date_str}"
+    title = f"EQ {crew_num}, {date_str}"
     lines = []
 
     if mezzo:
