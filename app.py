@@ -103,6 +103,14 @@ st.markdown("""
         color: #0f172a;
     }
 
+    .device-hint {
+        font-size: 13px;
+        color: #475569;
+        margin-top: -12px;
+        margin-bottom: 12px;
+        font-style: italic;
+    }
+
     /* Modalità Portrait (smartphone in verticale): scroll fluido e celle con min-width leggibile */
     @media screen and (orientation: portrait) and (max-width: 768px) {
         .matrix-table {
@@ -171,8 +179,9 @@ if "date_selector" not in st.session_state:
 def on_date_picker_change():
     st.session_state.current_date = st.session_state.date_selector
 
-# Titolo e Controlli Superiori
+# Titolo e Avviso Orientamento Dispositivo
 st.title("⚓ Proiezione turno Tripmare")
+st.markdown('<p class="device-hint">📱 Su dispositivi mobili si consiglia la visualizzazione in orizzontale (Landscape) per una resa ottimale della matrice mensile.</p>', unsafe_allow_html=True)
 
 c1, c2, c3, c4 = st.columns([1.5, 1.2, 1.2, 1.5])
 
@@ -180,7 +189,7 @@ with c1:
     view_type = st.selectbox(
         "Modalità Visualizzazione",
         options=["Equipaggio Specifico", "Terzina", "Tutti gli Equipaggi"],
-        index=0
+        index=2  # Default su "Tutti gli Equipaggi"
     )
 
 with c2:
