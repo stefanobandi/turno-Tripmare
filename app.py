@@ -5,10 +5,10 @@ from engine import get_week_index, get_shift_for_crew, get_holiday_type
 
 st.set_page_config(page_title="Proiezione turno Tripmare", layout="wide")
 
-# CSS personalizzato responsive per matrice a nastro
+# CSS personalizzato responsive e stile popup modale
 st.markdown("""
 <style>
-    /* Rimuove i margini esterni ingombranti di Streamlit per sfruttare tutto lo schermo */
+    /* Rimuove i margini esterni ingombranti di Streamlit */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 1rem !important;
@@ -66,6 +66,12 @@ st.markdown("""
         min-width: 65px;
     }
 
+    .clickable-cell {
+        cursor: pointer;
+        user-select: none;
+        -webkit-tap-highlight-color: rgba(0,0,0,0.1);
+    }
+
     .cell-content {
         display: flex;
         flex-direction: column;
@@ -73,7 +79,6 @@ st.markdown("""
         align-items: center;
         height: 44px;
         line-height: 1.1;
-        cursor: help;
     }
 
     .mezzo-num {
@@ -112,7 +117,47 @@ st.markdown("""
         font-style: italic;
     }
 
-    /* Modalità Portrait (smartphone in verticale): scroll fluido e celle con min-width leggibile */
+    /* Modal / Popup nativo per smartphone e desktop */
+    #infoModal {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        padding: 20px;
+        max-width: 320px;
+        width: 85%;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #infoModal::backdrop {
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(2px);
+    }
+    .modal-title {
+        font-size: 16px;
+        font-weight: bold;
+        color: #0f172a;
+        margin-bottom: 10px;
+        border-bottom: 2px solid #e2e8f0;
+        padding-bottom: 6px;
+    }
+    .modal-body {
+        font-size: 14px;
+        color: #334155;
+        line-height: 1.5;
+        margin-bottom: 16px;
+        white-space: pre-line;
+    }
+    .modal-btn {
+        background-color: #0284c7;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-weight: 600;
+        width: 100%;
+        cursor: pointer;
+    }
+
+    /* Modalità Portrait (smartphone in verticale) */
     @media screen and (orientation: portrait) and (max-width: 768px) {
         .matrix-table {
             table-layout: auto;
@@ -128,7 +173,7 @@ st.markdown("""
         }
     }
 
-    /* Modalità Landscape (smartphone/tablet ruotato in orizzontale): compressione totale su 1 schermata */
+    /* Modalità Landscape (smartphone/tablet in orizzontale) */
     @media screen and (orientation: landscape) and (max-width: 1024px) {
         .matrix-table {
             table-layout: fixed;
@@ -162,6 +207,24 @@ st.markdown("""
         }
     }
 </style>
+
+<!-- Dialog modale HTML nativo con script di ascolto tap/click -->
+<dialog id="infoModal">
+    <div id="modalTitle" class="modal-title">Dettaglio Turno</div>
+    <div id="modalBody" class="modal-body"></div>
+    <button class="modal-btn" onclick="document.getElementById('infoModal').close()">Chiudi</button>
+</dialog>
+
+<script>
+function showShiftInfo(title, details) {
+    var modal = document.getElementById('infoModal');
+    if (modal) {
+        document.getElementById('modalTitle').innerText = title;
+        document.getElementById('modalBody').innerText = details;
+        modal.showModal();
+    }
+}
+</script>
 """, unsafe_allow_html=True)
 
 # Mappatura dei mesi in italiano
@@ -170,22 +233,17 @@ MESI_ITALIANO = [
     "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
 ]
 
-def build_cell_tooltip(crew_num: int, target_date: datetime.date, mezzo: int, stato: str) -> str:
+def build_cell_info(crew_num: int, target_date: datetime.date, mezzo: int, stato: str) -> tuple:
     """
-    Costruisce la descrizione per il tooltip informativo della cella di turno.
-    Dislocazione:
-      - 1, 2: Canale
-      - 3, 4: Base
-    Propulsione:
-      - Dispari: Voith (VWT)
-      - Pari: Azimutale (ASD)
+    Restituisce (titolo, testo_dettagliato) per il popup al tocco e tooltip.
+    Senza dettagli su propulsione (VWT/ASD), solo 'Rimorchiatore X in Canale/Base'.
     """
     date_str = target_date.strftime("%d/%m/%Y")
-    lines = [f"Equipaggio {crew_num} - {date_str}"]
+    title = f"Equipaggio {crew_num} • {date_str}"
+    lines = []
 
     if mezzo:
         dislocazione = "Canale" if mezzo in [1, 2] else "Base"
-        propulsione = "Azimutale (ASD)" if mezzo % 2 == 0 else "Voith (VWT)"
         
         if stato == "20":
             turno_desc = "Montante notte"
@@ -197,8 +255,7 @@ def build_cell_tooltip(crew_num: int, target_date: datetime.date, mezzo: int, st
             turno_desc = stato
 
         lines.append(f"Turno: {turno_desc}")
-        lines.append(f"Mezzo: Rimorchiatore {mezzo} ({propulsione})")
-        lines.append(f"Postazione: {dislocazione}")
+        lines.append(f"Mezzo: Rimorchiatore {mezzo} in {dislocazione}")
     else:
         if stato == "L":
             lines.append("Stato: Libero")
@@ -209,7 +266,7 @@ def build_cell_tooltip(crew_num: int, target_date: datetime.date, mezzo: int, st
         else:
             lines.append(f"Stato: {stato}")
 
-    return "&#10;".join(lines)
+    return title, "\n".join(lines)
 
 # Inizializzazione session_state sincronizzato
 if "current_date" not in st.session_state:
@@ -223,7 +280,7 @@ def on_date_picker_change():
 
 # Titolo e Avviso Orientamento Dispositivo
 st.title("⚓ Proiezione turno Tripmare")
-st.markdown('<p class="device-hint">📱 Su dispositivi mobili si consiglia la visualizzazione in orizzontale (Landscape) per una resa ottimale della matrice mensile.</p>', unsafe_allow_html=True)
+st.markdown('<p class="device-hint">📱 Su dispositivi mobili si consiglia la visualizzazione in orizzontale (Landscape). Tocca qualsiasi casella per i dettagli del turno.</p>', unsafe_allow_html=True)
 
 c1, c2, c3, c4 = st.columns([1.5, 1.2, 1.2, 1.5])
 
@@ -231,7 +288,7 @@ with c1:
     view_type = st.selectbox(
         "Modalità Visualizzazione",
         options=["Equipaggio Specifico", "Terzina", "Tutti gli Equipaggi"],
-        index=2  # Default su "Tutti gli Equipaggi"
+        index=2
     )
 
 with c2:
@@ -381,9 +438,19 @@ for c_num in crews_to_render:
             
         mezzo_html = f'<span class="mezzo-num">{mezzo}</span>' if mezzo else ''
         stato_html = f'<span class="stato-text">{stato}</span>'
-        tooltip_text = build_cell_tooltip(c_num, d, mezzo, stato)
         
-        html_table.append(f'<td class="{cell_cls}" title="{tooltip_text}"><div class="cell-content">{mezzo_html}{stato_html}</div></td>')
+        # Testo del tooltip / popup modale
+        title_info, details_info = build_cell_info(c_num, d, mezzo, stato)
+        # Escape per JavaScript inline
+        clean_title = title_info.replace("'", "\\'")
+        clean_details = details_info.replace("\n", "\\n").replace("'", "\\'")
+        onclick_attr = f"onclick=\"showShiftInfo('{clean_title}', '{clean_details}')\""
+        
+        html_table.append(
+            f'<td class="{cell_cls} clickable-cell" title="{details_info}" {onclick_attr}>'
+            f'<div class="cell-content">{mezzo_html}{stato_html}</div>'
+            f'</td>'
+        )
     html_table.append('</tr>')
 
 html_table.append('</tbody></table></div>')
