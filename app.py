@@ -73,6 +73,7 @@ st.markdown("""
         align-items: center;
         height: 44px;
         line-height: 1.1;
+        cursor: help;
     }
 
     .mezzo-num {
@@ -168,6 +169,47 @@ MESI_ITALIANO = [
     "", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
     "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
 ]
+
+def build_cell_tooltip(crew_num: int, target_date: datetime.date, mezzo: int, stato: str) -> str:
+    """
+    Costruisce la descrizione per il tooltip informativo della cella di turno.
+    Dislocazione:
+      - 1, 2: Canale
+      - 3, 4: Base
+    Propulsione:
+      - Dispari: Voith (VWT)
+      - Pari: Azimutale (ASD)
+    """
+    date_str = target_date.strftime("%d/%m/%Y")
+    lines = [f"Equipaggio {crew_num} - {date_str}"]
+
+    if mezzo:
+        dislocazione = "Canale" if mezzo in [1, 2] else "Base"
+        propulsione = "Azimutale (ASD)" if mezzo % 2 == 0 else "Voith (VWT)"
+        
+        if stato == "20":
+            turno_desc = "Montante notte"
+        elif stato == "08":
+            turno_desc = "Smontante notte"
+        elif stato == "08:20":
+            turno_desc = "Giorno dalle 08 alle 20"
+        else:
+            turno_desc = stato
+
+        lines.append(f"Turno: {turno_desc}")
+        lines.append(f"Mezzo: Rimorchiatore {mezzo} ({propulsione})")
+        lines.append(f"Postazione: {dislocazione}")
+    else:
+        if stato == "L":
+            lines.append("Stato: Libero")
+        elif stato in ["L1", "L2", "L3"]:
+            lines.append(f"Stato: Disponibilità {stato}")
+        elif stato.startswith("R"):
+            lines.append(f"Stato: Settimana di Riserva {stato}")
+        else:
+            lines.append(f"Stato: {stato}")
+
+    return "&#10;".join(lines)
 
 # Inizializzazione session_state sincronizzato
 if "current_date" not in st.session_state:
@@ -339,8 +381,9 @@ for c_num in crews_to_render:
             
         mezzo_html = f'<span class="mezzo-num">{mezzo}</span>' if mezzo else ''
         stato_html = f'<span class="stato-text">{stato}</span>'
+        tooltip_text = build_cell_tooltip(c_num, d, mezzo, stato)
         
-        html_table.append(f'<td class="{cell_cls}"><div class="cell-content">{mezzo_html}{stato_html}</div></td>')
+        html_table.append(f'<td class="{cell_cls}" title="{tooltip_text}"><div class="cell-content">{mezzo_html}{stato_html}</div></td>')
     html_table.append('</tr>')
 
 html_table.append('</tbody></table></div>')
