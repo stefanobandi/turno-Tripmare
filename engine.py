@@ -1,7 +1,8 @@
 import datetime
 
-# Data di ancoraggio certa verificata dalla matrice
-ANCHOR_DATE = datetime.date(2026, 1, 12)  # Lunedì 12 Gennaio 2026 = Settimana 1 (indice 0)
+# Data di ancoraggio certa (verificata dalla matrice a 21 settimane)
+# Lunedì 12 Gennaio 2026 = Lunedì della Settimana 1 (indice 0 internamente)
+ANCHOR_DATE = datetime.date(2026, 1, 12)
 
 # Ciclo Base deterministico di 18 giorni (indicizzato da 0 a 17)
 BASE_CYCLE_18 = [
@@ -28,16 +29,16 @@ BASE_CYCLE_18 = [
     {"giorno_ciclo": 18, "blocco": "C", "mezzo": None, "stato": "L"},       # idx 17
 ]
 
-# Indici nel ciclo a 18 giorni per gli stati di rientro
+# Indici nel ciclo base per gli stati di rientro
 CYCLE_RETURN_INDICES = {
     "L1": 4,   # Giorno 5
     "L2": 10,  # Giorno 11
     "L3": 16,  # Giorno 17
 }
 
-# Matrice esatta per Tranche (0=sett. 1-7, 1=sett. 8-14, 2=sett. 15-21)
-# e posizione nella terzina (0=primo, 1=secondo, 2=terzo):
-# formato: (tipo_riserva, stato_rientro)
+# Rotazione dei ruoli e dei rientri per le 3 tranche da 7 settimane
+# Posizione terzina: 0 (primo equipaggio), 1 (secondo), 2 (terzo)
+# Formato tupla: (tipo_riserva, stato_rientro)
 TRANCHE_CONFIG = [
     # Tranche 0 (Settimane 1-7)
     [("R1", "L1"), ("R2", "L3"), ("R3", "L2")],
@@ -47,10 +48,79 @@ TRANCHE_CONFIG = [
     [("R3", "L3"), ("R1", "L2"), ("R2", "L1")],
 ]
 
+def calculate_easter(year: int) -> datetime.date:
+    """
+    Calcolo astronomico della domenica di Pasqua tramite algoritmo di Butcher/Meeus.
+    Valido per qualsiasi anno gregoriano.
+    """
+    a = year % 19
+    b = year // 100
+    c = year % 100
+    d = b // 4
+    e = b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i = c // 4
+    k = c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    month = (h + l - 7 * m + 114) // 31
+    day = ((h + l - 7 * m + 114) % 31) + 1
+    return datetime.date(year, month, day)
+
+def get_holiday_type(target_date: datetime.date) -> tuple:
+    """
+    Determina se una data è Festiva (rosso pieno), Semifestiva (rosso tenue) o Ordinaria.
+    Restituisce una tupla: (is_holiday, is_semiholiday, nome_festivita)
+    """
+    year = target_date.year
+    month = target_date.month
+    day = target_date.day
+    weekday = target_date.weekday()  # 6 = Domenica
+    
+    # 1. Festività fisse CCNL (incluse San Giusto il 3 nov e Unità Nazionale il 4 nov)
+    fixed_holidays = {
+        (1, 1): "Capodanno",
+        (1, 6): "Epifania",
+        (4, 25): "Liberazione",
+        (5, 1): "Festa del Lavoro",
+        (6, 2): "Festa della Repubblica",
+        (8, 15): "Assunzione",
+        (11, 1): "Ognissanti",
+        (11, 3): "San Giusto",
+        (11, 4): "Unità Nazionale",
+        (12, 8): "Immacolata Concezione",
+        (12, 25): "Natale",
+        (12, 26): "Santo Stefano",
+    }
+    
+    # 2. Festività e semifestivi mobili (Pasqua e Pasquetta, Sabato Santo)
+    easter = calculate_easter(year)
+    easter_monday = easter + datetime.timedelta(days=1)
+    easter_eve = easter - datetime.timedelta(days=1)
+    
+    # Controllo Festivi (Rosso Pieno)
+    if (month, day) in fixed_holidays:
+        return (True, False, fixed_holidays[(month, day)])
+    if target_date == easter:
+        return (True, False, "Pasqua")
+    if target_date == easter_monday:
+        return (True, False, "Pasquetta")
+    if weekday == 6:
+        return (True, False, "Domenica")
+        
+    # Controllo Semifestivi (Rosso Tenue)
+    if target_date == easter_eve:
+        return (False, True, "Vigilia di Pasqua")
+    if month == 12 and day == 24:
+        return (False, True, "Vigilia di Natale")
+        
+    return (False, False, "")
+
 def get_week_index(target_date: datetime.date) -> int:
     """
-    Restituisce l'indice della settimana da 0 a 20 (Settimane 1..21)
-    rispetto al lunedì di ancoraggio.
+    Restituisce l'indice della settimana da 0 a 20 rispetto all'ancora.
     """
     target_monday = target_date - datetime.timedelta(days=target_date.weekday())
     delta_days = (target_monday - ANCHOR_DATE).days
@@ -59,22 +129,18 @@ def get_week_index(target_date: datetime.date) -> int:
 
 def build_21week_schedule_matrix() -> dict:
     """
-    Costruisce l'intera matrice deterministica per i 21 equipaggi lungo le 21 settimane.
-    Chiave: (crew_num, week_idx, day_idx) dove day_idx 0=Lun, 6=Dom.
+    Costruisce l'intera matrice per i 21 equipaggi lungo le 21 settimane (147 giorni).
+    Chiave: (crew_num, week_idx, day_idx)
     """
     matrix = {}
-    
-    # Ancoraggio verificato per Equipaggio 8 a Lunedì 12 Gennaio 2026:
-    # Lun 12 Gen è 08:20 sul mezzo 1 -> Giorno 3 del ciclo base (indice 2)
-    ANCHOR_EQ8_START_IDX = 2
+    ANCHOR_EQ8_START_IDX = 2  # Equipaggio 8 inizia a Lun 12 Gen 2026 dal Giorno 3 (indice 2)
     
     for crew_num in range(1, 22):
-        terzina_num = ((crew_num - 1) // 3) + 1  # Terzina da 1 a 7
-        pos_in_terzina = (crew_num - 1) % 3     # 0 (primo), 1 (secondo), 2 (terzo)
-        
+        terzina_num = ((crew_num - 1) // 3) + 1  # 1..7
+        pos_in_terzina = (crew_num - 1) % 3     # 0..2
         full_timeline = [None] * (21 * 7)
         
-        # 1. Assegna le 3 settimane di riserva e registra il tipo e lo stato di rientro
+        # 1. Configurazione delle 3 settimane di riserva
         reserve_events = {}
         for tranche in range(3):
             w_idx = (terzina_num - 1) + tranche * 7
@@ -88,14 +154,13 @@ def build_21week_schedule_matrix() -> dict:
             for d in range(7):
                 full_timeline[start_day + d] = {"mezzo": None, "stato": r_type}
         
-        # 2. Propaga il ciclo lavorativo di 18 giorni
+        # 2. Propagazione ciclo
         if crew_num == 8:
             cycle_cursor = ANCHOR_EQ8_START_IDX
             for day_abs in range(21 * 7):
                 w = day_abs // 7
                 if w in reserve_events:
                     continue
-                # Se è il lunedì successivo a una settimana di riserva, applica il rientro esatto
                 if day_abs % 7 == 0 and ((w - 1) % 21) in reserve_events:
                     prev_res = reserve_events[(w - 1) % 21]
                     cycle_cursor = prev_res["rientro_idx"]
@@ -107,7 +172,6 @@ def build_21week_schedule_matrix() -> dict:
                 }
                 cycle_cursor += 1
         else:
-            # Per tutti gli altri equipaggi si propaga a partire da ciascun rientro post-riserva
             for w_res, res_info in sorted(reserve_events.items()):
                 next_mon = (w_res + 1) * 7
                 cycle_cursor = res_info["rientro_idx"]
@@ -121,7 +185,7 @@ def build_21week_schedule_matrix() -> dict:
                         }
                         cycle_cursor += 1
                         
-        # 3. Popola la matrice accessibile dall'interfaccia
+        # 3. Inserimento in matrice
         for w in range(21):
             for d in range(7):
                 day_total = w * 7 + d
@@ -133,11 +197,17 @@ SCHEDULE_MATRIX = build_21week_schedule_matrix()
 
 def get_shift_for_crew(crew_num: int, target_date: datetime.date) -> dict:
     """
-    Restituisce il turno esatto per qualsiasi data ed equipaggio interrogando la matrice.
+    Restituisce il turno e lo stato festivo per una data ed equipaggio specifici.
     """
     week_idx = get_week_index(target_date)
     day_idx = target_date.weekday()
-    return SCHEDULE_MATRIX.get((crew_num, week_idx, day_idx), {
+    shift = SCHEDULE_MATRIX.get((crew_num, week_idx, day_idx), {
         "mezzo": None,
         "stato": "ND"
-    })
+    }).copy()
+    
+    is_holiday, is_semiholiday, holiday_name = get_holiday_type(target_date)
+    shift["is_holiday"] = is_holiday
+    shift["is_semiholiday"] = is_semiholiday
+    shift["holiday_name"] = holiday_name
+    return shift
