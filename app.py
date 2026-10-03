@@ -3,73 +3,88 @@ import datetime
 import calendar
 from engine import get_week_index, get_shift_for_crew, get_holiday_type
 
-st.set_page_config(page_title="Turni Rimorchiatori", layout="wide")
+st.set_page_config(page_title="Proiezione turno Tripmare", layout="wide")
 
-# CSS personalizzato per la matrice orizzontale a nastro
+# CSS personalizzato responsive per matrice a nastro
 st.markdown("""
 <style>
+    /* Rimuove i margini esterni ingombranti di Streamlit per sfruttare tutto lo schermo */
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+        max-width: 100% !important;
+    }
+
     .matrix-table {
         width: 100%;
         border-collapse: collapse;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        margin-top: 15px;
-        margin-bottom: 25px;
+        margin-top: 10px;
+        margin-bottom: 20px;
+        table-layout: fixed;
     }
+    
     .matrix-table th, .matrix-table td {
-        border: 1px solid #c0c0c0;
+        border: 1px solid #cbd5e1;
         text-align: center;
-        padding: 4px 2px;
-        min-width: 42px;
+        padding: 3px 1px;
     }
+
     .header-day-num {
-        font-size: 13px;
+        font-size: 12px;
         font-weight: bold;
     }
     .header-day-name {
-        font-size: 11px;
+        font-size: 10px;
         text-transform: uppercase;
     }
+    
     .th-normal {
-        background-color: #f0f2f6;
-        color: #1f2937;
+        background-color: #f1f5f9;
+        color: #1e293b;
     }
     .th-holiday {
-        background-color: #d32f2f !important;
+        background-color: #dc2626 !important;
         color: #ffffff !important;
     }
     .th-semiholiday {
-        background-color: #ffcdd2 !important;
-        color: #b71c1c !important;
+        background-color: #fca5a5 !important;
+        color: #7f1d1d !important;
     }
+
     .crew-label-cell {
-        background-color: #1e293b;
+        background-color: #0f172a;
         color: #ffffff;
         font-weight: bold;
-        font-size: 13px;
+        font-size: 12px;
         position: sticky;
         left: 0;
         z-index: 2;
-        min-width: 90px;
+        width: 65px;
+        min-width: 65px;
     }
+
     .cell-content {
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        height: 48px;
-        font-size: 11px;
+        height: 44px;
+        line-height: 1.1;
     }
+
     .mezzo-num {
         font-weight: 800;
-        font-size: 13px;
+        font-size: 12px;
         color: #0284c7;
-        line-height: 1.1;
     }
     .stato-text {
         font-weight: 600;
         font-size: 11px;
-        line-height: 1.1;
     }
+
     .cell-l {
         background-color: #dcfce7;
         color: #15803d;
@@ -87,15 +102,77 @@ st.markdown("""
         background-color: #ffffff;
         color: #0f172a;
     }
+
+    /* Modalità Portrait (smartphone in verticale): scroll fluido e celle con min-width leggibile */
+    @media screen and (orientation: portrait) and (max-width: 768px) {
+        .matrix-table {
+            table-layout: auto;
+        }
+        .matrix-table th, .matrix-table td {
+            min-width: 38px;
+            padding: 3px 2px;
+        }
+        .crew-label-cell {
+            min-width: 55px;
+            width: 55px;
+            font-size: 11px;
+        }
+    }
+
+    /* Modalità Landscape (smartphone/tablet ruotato in orizzontale): compressione totale su 1 schermata */
+    @media screen and (orientation: landscape) and (max-width: 1024px) {
+        .matrix-table {
+            table-layout: fixed;
+            width: 100%;
+        }
+        .matrix-table th, .matrix-table td {
+            min-width: 0 !important;
+            padding: 2px 0px !important;
+        }
+        .header-day-num {
+            font-size: 10px !important;
+        }
+        .header-day-name {
+            font-size: 8px !important;
+        }
+        .crew-label-cell {
+            width: 45px !important;
+            min-width: 45px !important;
+            font-size: 10px !important;
+            padding: 2px 1px !important;
+        }
+        .cell-content {
+            height: 38px !important;
+        }
+        .mezzo-num {
+            font-size: 10px !important;
+        }
+        .stato-text {
+            font-size: 9px !important;
+            letter-spacing: -0.5px;
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Inizializzazione session_state per navigazione
+# Mappatura dei mesi in italiano
+MESI_ITALIANO = [
+    "", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+    "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
+]
+
+# Inizializzazione session_state sincronizzato
 if "current_date" not in st.session_state:
     st.session_state.current_date = datetime.date.today()
 
-# Header e Controlli Superiori
-st.title("⚓ Gestione e Proiezione Turni Equipaggi")
+if "date_selector" not in st.session_state:
+    st.session_state.date_selector = st.session_state.current_date
+
+def on_date_picker_change():
+    st.session_state.current_date = st.session_state.date_selector
+
+# Titolo e Controlli Superiori
+st.title("⚓ Proiezione turno Tripmare")
 
 c1, c2, c3, c4 = st.columns([1.5, 1.2, 1.2, 1.5])
 
@@ -125,11 +202,15 @@ with c4:
     if time_horizon == "Settimane":
         num_weeks = st.selectbox("Durata Settimane", options=[1, 2, 3], index=0)
     else:
-        num_weeks = None
+        num_weeks = 1
 
-# Barra di Navigazione Temporale Ibrida (Pulsanti + Datepicker)
+# Barra Navigazione Temporale Ibrida (Pulsanti + Datepicker)
 st.write("---")
 nav1, nav2, nav3, nav4 = st.columns([1, 1, 1, 2])
+
+def set_new_date(new_date: datetime.date):
+    st.session_state.current_date = new_date
+    st.session_state.date_selector = new_date
 
 def advance_date(direction: int):
     d = st.session_state.current_date
@@ -142,10 +223,12 @@ def advance_date(direction: int):
         elif month < 1:
             month = 12
             year -= 1
-        st.session_state.current_date = datetime.date(year, month, 1)
+        max_days = calendar.monthrange(year, month)[1]
+        target_day = min(d.day, max_days)
+        set_new_date(datetime.date(year, month, target_day))
     else:
         delta = datetime.timedelta(weeks=direction * num_weeks)
-        st.session_state.current_date = d + delta
+        set_new_date(d + delta)
 
 with nav1:
     if st.button("◀ Precedente", use_container_width=True):
@@ -154,7 +237,7 @@ with nav1:
 
 with nav2:
     if st.button("Oggi", use_container_width=True):
-        st.session_state.current_date = datetime.date.today()
+        set_new_date(datetime.date.today())
         st.rerun()
 
 with nav3:
@@ -163,15 +246,12 @@ with nav3:
         st.rerun()
 
 with nav4:
-    picker_date = st.date_input(
+    st.date_input(
         "Vai direttamente a data:",
-        value=st.session_state.current_date,
         key="date_selector",
+        on_change=on_date_picker_change,
         label_visibility="collapsed"
     )
-    if picker_date != st.session_state.current_date:
-        st.session_state.current_date = picker_date
-        st.rerun()
 
 # Calcolo delle date da visualizzare
 curr = st.session_state.current_date
@@ -182,7 +262,8 @@ if time_horizon == "Mese Completo":
     month = curr.month
     _, num_days = calendar.monthrange(year, month)
     dates_to_show = [datetime.date(year, month, day) for day in range(1, num_days + 1)]
-    st.markdown(f"### Mese di **{calendar.month_name[month].capitalize()} {year}**")
+    nome_mese_it = MESI_ITALIANO[month]
+    st.markdown(f"### Mese di **{nome_mese_it} {year}**")
 else:
     start_monday = curr - datetime.timedelta(days=curr.weekday())
     total_days = num_weeks * 7
@@ -199,11 +280,11 @@ else:
     crews_to_render = list(range(1, 22))
 
 # Generazione della tabella HTML orizzontale a nastro
-html_table = ['<div style="overflow-x: auto;"><table class="matrix-table">']
+html_table = ['<div style="overflow-x: auto; -webkit-overflow-scrolling: touch;"><table class="matrix-table">']
 
 # Riga Intestazione 1: Numero Giorno
-html_table.append('<thead><tr><th class="crew-label-cell" style="top:0;">Giorno</th>')
-day_names_it = ["lun", "mar", "mer", "gio", "ven", "sab", "dom"]
+html_table.append('<thead><tr><th class="crew-label-cell">Giorno</th>')
+day_names_it = ["lu", "ma", "me", "gi", "ve", "sa", "do"]
 
 for d in dates_to_show:
     is_hol, is_semi, h_name = get_holiday_type(d)
@@ -216,8 +297,8 @@ for d in dates_to_show:
     html_table.append(f'<th class="{th_class}" {title_attr}><span class="header-day-num">{d.strftime("%d")}</span></th>')
 html_table.append('</tr>')
 
-# Riga Intestazione 2: Nome Giorno
-html_table.append('<tr><th class="crew-label-cell" style="top:0;">Equipaggio</th>')
+# Riga Intestazione 2: Nome Giorno abbreviato
+html_table.append('<tr><th class="crew-label-cell">Eq.</th>')
 for d in dates_to_show:
     is_hol, is_semi, _ = get_holiday_type(d)
     th_class = "th-normal"
@@ -237,7 +318,7 @@ for c_num in crews_to_render:
         mezzo = shift["mezzo"]
         stato = shift["stato"]
         
-        # Scelta stile cella
+        # Classificazione cella
         if stato == "L":
             cell_cls = "cell-l"
         elif stato in ["L1", "L2", "L3"]:
@@ -257,15 +338,15 @@ html_table.append('</tbody></table></div>')
 
 st.markdown("".join(html_table), unsafe_allow_html=True)
 
-# Legenda di supporto a fondo pagina
+# Legenda a fondo pagina
 leg1, leg2, leg3, leg4, leg5 = st.columns(5)
 with leg1:
-    st.markdown("🔴 **Festivo / Domenica**: Rosso")
+    st.markdown("🔴 **Festivo / Dom**")
 with leg2:
-    st.markdown("🟠 **Semifestivo**: Salmone")
+    st.markdown("🟠 **Semifestivo**")
 with leg3:
-    st.markdown("🟢 **Riposo (L)**: Verde")
+    st.markdown("🟢 **Riposo (L)**")
 with leg4:
-    st.markdown("🟡 **Disponibilità (L1/L2/L3)**: Giallo")
+    st.markdown("🟡 **Disp. (L1-3)**")
 with leg5:
-    st.markdown("⚪ **Riserva (R1/R2/R3)**: Grigio")
+    st.markdown("⚪ **Riserva (R)**")
