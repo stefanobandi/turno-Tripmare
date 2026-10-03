@@ -233,13 +233,19 @@ MESI_ITALIANO = [
     "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
 ]
 
+MESI_BREVI_ITALIANO = [
+    "", "gen", "feb", "mar", "apr", "mag", "giu",
+    "lug", "ago", "set", "ott", "nov", "dic"
+]
+
 def build_cell_info(crew_num: int, target_date: datetime.date, mezzo: int, stato: str) -> tuple:
     """
     Restituisce (titolo, testo_dettagliato) per il popup al tocco e tooltip.
-    Titolo: EQ {crew_num}, {data}
+    Titolo: EQ{crew_num} - {giorno} {mese_abbrev} {anno} (es: EQ8 - 03 ott 2026)
     """
-    date_str = target_date.strftime("%d/%m/%Y")
-    title = f"EQ {crew_num}, {date_str}"
+    mese_abbr = MESI_BREVI_ITALIANO[target_date.month]
+    date_formatted = f"{target_date.strftime('%d')} {mese_abbr} {target_date.year}"
+    title = f"EQ{crew_num} - {date_formatted}"
     lines = []
 
     if mezzo:
@@ -441,7 +447,6 @@ for c_num in crews_to_render:
         
         # Testo del tooltip / popup modale
         title_info, details_info = build_cell_info(c_num, d, mezzo, stato)
-        # Escape per JavaScript inline
         clean_title = title_info.replace("'", "\\'")
         clean_details = details_info.replace("\n", "\\n").replace("'", "\\'")
         onclick_attr = f"onclick=\"showShiftInfo('{clean_title}', '{clean_details}')\""
