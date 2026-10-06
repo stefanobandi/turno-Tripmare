@@ -271,7 +271,7 @@ def build_cell_tooltip(crew_num: int, target_date: datetime.date, mezzo: int, st
     lines = [header_line]
 
     if mezzo:
-        dislocazione = "Canale" if mezzo in [1, 2] else "Base"
+        dislocazione = "SIOT" if mezzo in [1, 2] else "PFV / Base"
         
         if stato == "20":
             turno_desc = "Montante notte"
@@ -532,15 +532,15 @@ st.markdown("""
         </div>
         <div>
             <b>Rimorchiatori e Dislocazione:</b><br>
-            • <b>Mezzi 1 e 2</b>: Canale<br>
-            • <b>Mezzi 3 e 4</b>: Base<br>
+            • <b>Mezzi 1 e 2</b>: SIOT<br>
+            • <b>Mezzi 3 e 4</b>: PFV / Base<br>
             • <b>Dispari (1, 3)</b>: Voith (VWT)<br>
-            • <b>Pari (2, 4)</b>: Azimutale (ASD)
+            • <b>Pari (2, 4)</b>: Azimutale (ASD / RSD)
         </div>
         <div>
             <b>Calendario:</b><br>
             • <span class="legend-color-pill" style="background-color: #dc2626;"></span><b>Rosso</b>: Festivo CCNL (15gg) / Domenica<br>
-            • <span class="legend-color-pill" style="background-color: #fca5a5;"></span><b>Salmone</b>: Semifestivo (24 Dic / Sab. Santo)<br>
+            • <span class="legend-color-pill" style="background-color: #fca5a5;"></span><b>Salmone</b>: Semifestivo (CCNL Art. 28)<br>
             • <span class="legend-color-pill" style="background-color: #ffffff; border: 2px solid #2563eb;"></span><b>Bordo Blu</b>: Giornata odierna (Oggi)
         </div>
     </div>
@@ -610,7 +610,7 @@ with st.expander("**Cosa segno sul foglio ore in caso di scivolamento?**"):
 
 with st.expander("**Cosa segno se vengo messo in turno 20-08 dopo aver già preso servizio la mattina alle 08?**"):
     st.markdown("""
-    La rendicontazione oraria varia in base all'effettivo riposo intercorso tra le prestazioni:
+    La rendicontazione oraria varia in base all'effettivo riposo intercorso tra le prestazioni (*rif. CIA, pag. 29*):
     
     * **Caso 1 – Preso servizio alle 08:00 e reso libero entro le ore 12:00**:
       * **Dalle 08:00 alle 12:00**: orario e compenso normale.
@@ -632,18 +632,22 @@ with st.expander("Come funziona la rotazione delle 21 settimane e delle riserve?
 
 with st.expander("Qual è la differenza tra i giorni L e le disponibilità L1, L2, L3?"):
     st.write("""
-    Il codice **L** rappresenta il giorno di libero puro (riposo totale).
+    Il codice **L** rappresenta il giorno di libero puro (riposo totale da contratto).
     I codici **L1**, **L2** e **L3** rappresentano i giorni di disponibilità previsti dalla rotazione del ciclo, che precedono o seguono i blocchi di servizio sui mezzi operativi.
     """)
 
-with st.expander("Come vengono conteggiate le festività (CCNL e patronali)?"):
-    st.write("""
-    Il calendario evidenzia in rosso tutte le domeniche e le 15 festività previste da contratto (compresi il Santo Patrono San Giusto il 3 novembre e la ricorrenza del 4 novembre).
-    La Vigilia di Pasqua (Sabato Santo) e la Vigilia di Natale (24 dicembre) sono evidenziate in color salmone come giornate semifestive.
+with st.expander("Come vengono conteggiate le festività e le semifestività (CCNL Art. 28)?"):
+    st.markdown("""
+    * **Giorni festivi (CCNL Art. 28 comma 1)**: Il calendario evidenzia in **rosso** tutte le domeniche e i 15 giorni festivi riconosciuti da contratto (compresi il Santo Patrono San Giusto il 3 novembre e la festività del 4 novembre).
+    * **Giorni semifestivi (CCNL Art. 28 comma 2)**: Sono considerate semifestive, e cioè **festive solo nelle ore pomeridiane**, la Vigilia di Natale (24 dicembre) e la Vigilia di Pasqua (Sabato Santo), evidenziate in calendario in color **salmone**.
     """)
 
-with st.expander("Come vengono dislocati i rimorchiatori sul porto di Trieste?"):
-    st.write("""
-    I Rimorchiatori contrassegnati con i numeri **1 e 2** fanno capo alla postazione del **Canale**, mentre i numeri **3 e 4** fanno capo alla **Base**.
-    I mezzi con numero dispari (1 e 3) sono dotati di propulsione cicloidale Voith Schneider (VWT), mentre i numeri pari (2 e 4) sono dotati di propulsione azimutale (ASD).
+with st.expander("Come vengono dislocati i rimorchiatori sul porto di Trieste e quali sono i mezzi RSD?"):
+    st.markdown("""
+    * **Zona SIOT (Terminal Petrolifero)**: Mezzi **1 e 2**.
+    * **Zona PFV / Base (Porto Franco Vecchio)**: Mezzi **3 e 4**.
+    * **Propulsione**:
+      * Mezzi dispari (**1, 3**): propulsione cicloidale Voith Schneider (VWT).
+      * Mezzi pari (**2, 4**): propulsione azimutale (ASD).
+    * **Rimorchiatori RSD (Reversed Stern Drive)**: operano attualmente in servizio presso la base del **PFV (Porto Franco Vecchio)** sia come mezzo numero **3** che numero **4**.
     """)
