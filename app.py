@@ -5,7 +5,7 @@ from engine import get_week_index, get_shift_for_crew, get_holiday_type
 
 st.set_page_config(page_title="Proiezione turno Tripmare", layout="wide")
 
-# CSS Avanzato per tabella a nastro, sticky headers, evidenziazione oggi e popup
+# CSS Avanzato per tabella a nastro, sticky headers, evidenziazione oggi e legenda
 st.markdown("""
 <style>
     /* Rimuove i margini esterni ingombranti di Streamlit */
@@ -133,15 +133,6 @@ st.markdown("""
     }
 
     /* Celle turno */
-    .clickable-cell {
-        cursor: pointer;
-        user-select: none;
-        -webkit-tap-highlight-color: rgba(37, 99, 235, 0.2);
-    }
-    .clickable-cell:hover {
-        filter: brightness(0.95);
-    }
-
     .cell-content {
         display: flex;
         flex-direction: column;
@@ -149,6 +140,7 @@ st.markdown("""
         align-items: center;
         height: 44px;
         line-height: 1.1;
+        cursor: default;
     }
 
     .mezzo-num {
@@ -161,7 +153,7 @@ st.markdown("""
         font-size: 11px;
     }
 
-    /* Colori turni e riposi (perfettamente coordinati con la legenda) */
+    /* Colori turni e riposi coordinati con la legenda */
     .cell-l {
         background-color: #dcfce7;
         color: #15803d;
@@ -186,61 +178,6 @@ st.markdown("""
         margin-top: -10px;
         margin-bottom: 12px;
         font-style: italic;
-    }
-
-    /* Overlay Modal nativa per Touch su Smartphone e Click su Desktop */
-    .shift-modal-backdrop {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        background-color: rgba(15, 23, 42, 0.65);
-        backdrop-filter: blur(2px);
-        z-index: 99999;
-        justify-content: center;
-        align-items: center;
-    }
-    .shift-modal-box {
-        background-color: #ffffff;
-        border-radius: 12px;
-        padding: 20px;
-        width: 85%;
-        max-width: 320px;
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
-        border: 1px solid #cbd5e1;
-        animation: modalFadeIn 0.15s ease-out;
-    }
-    @keyframes modalFadeIn {
-        from { transform: scale(0.92); opacity: 0; }
-        to { transform: scale(1); opacity: 1; }
-    }
-    .shift-modal-title {
-        font-size: 16px;
-        font-weight: 800;
-        color: #0f172a;
-        margin-bottom: 10px;
-        border-bottom: 2px solid #e2e8f0;
-        padding-bottom: 6px;
-    }
-    .shift-modal-body {
-        font-size: 14px;
-        color: #334155;
-        line-height: 1.6;
-        margin-bottom: 16px;
-        white-space: pre-line;
-    }
-    .shift-modal-close-btn {
-        background-color: #0284c7;
-        color: #ffffff;
-        border: none;
-        border-radius: 6px;
-        padding: 10px 14px;
-        font-weight: 700;
-        font-size: 14px;
-        width: 100%;
-        cursor: pointer;
     }
 
     /* Box Legenda */
@@ -312,48 +249,6 @@ st.markdown("""
         }
     }
 </style>
-
-<!-- Struttura della Modale HTML e Script Delegato per Smartphone e Desktop -->
-<div id="shiftModalBackdrop" class="shift-modal-backdrop" onclick="closeShiftModal(event)">
-    <div class="shift-modal-box" onclick="event.stopPropagation()">
-        <div id="modalTitleText" class="shift-modal-title"></div>
-        <div id="modalBodyText" class="shift-modal-body"></div>
-        <button class="shift-modal-close-btn" onclick="hideShiftModal()">Chiudi</button>
-    </div>
-</div>
-
-<script>
-function openShiftModal(title, body) {
-    var modal = document.getElementById('shiftModalBackdrop');
-    if (modal) {
-        document.getElementById('modalTitleText').innerText = title;
-        document.getElementById('modalBodyText').innerText = body;
-        modal.style.display = 'flex';
-    }
-}
-function hideShiftModal() {
-    var modal = document.getElementById('shiftModalBackdrop');
-    if (modal) {
-        modal.style.display = 'none';
-    }
-}
-function closeShiftModal(e) {
-    if (e.target.id === 'shiftModalBackdrop') {
-        hideShiftModal();
-    }
-}
-// Delegazione eventi touchstart e click su tutta la pagina per massima reattività mobile
-document.addEventListener('click', function(e) {
-    var cell = e.target.closest('.clickable-cell');
-    if (cell) {
-        var t = cell.getAttribute('data-title');
-        var d = cell.getAttribute('data-details');
-        if (t && d) {
-            openShiftModal(t, d);
-        }
-    }
-});
-</script>
 """, unsafe_allow_html=True)
 
 # Mappatura dei mesi
@@ -367,12 +262,12 @@ MESI_BREVI_ITALIANO = [
     "lug", "ago", "set", "ott", "nov", "dic"
 ]
 
-def build_cell_info(crew_num: int, target_date: datetime.date, mezzo: int, stato: str) -> tuple:
-    """Restituisce il titolo e il corpo formattato per la modale e il tooltip."""
+def build_cell_tooltip(crew_num: int, target_date: datetime.date, mezzo: int, stato: str) -> str:
+    """Restituisce il testo esplicativo per il tooltip al passaggio del mouse."""
     mese_abbr = MESI_BREVI_ITALIANO[target_date.month]
     date_formatted = f"{target_date.strftime('%d')} {mese_abbr} {target_date.year}"
     header_line = f"EQ{crew_num} - {date_formatted}"
-    lines = []
+    lines = [header_line]
 
     if mezzo:
         dislocazione = "Canale" if mezzo in [1, 2] else "Base"
@@ -398,7 +293,7 @@ def build_cell_info(crew_num: int, target_date: datetime.date, mezzo: int, stato
         else:
             lines.append(f"Stato: {stato}")
 
-    return header_line, "\n".join(lines)
+    return "&#10;".join(lines)
 
 # Inizializzazione session_state per navigazione
 if "current_date" not in st.session_state:
@@ -406,7 +301,7 @@ if "current_date" not in st.session_state:
 
 # Header e Controlli Superiori
 st.title("⚓ Proiezione turno Tripmare")
-st.markdown('<p class="device-hint">📱 Su dispositivi mobili si consiglia la visualizzazione in orizzontale (Landscape). Tocca qualsiasi casella per i dettagli.</p>', unsafe_allow_html=True)
+st.markdown('<p class="device-hint">📱 Su dispositivi mobili si consiglia la visualizzazione in orizzontale (Landscape).</p>', unsafe_allow_html=True)
 
 c1, c2, c3, c4 = st.columns([1.5, 1.2, 1.2, 1.5])
 
@@ -475,7 +370,7 @@ with nav3:
         advance_date(1)
         st.rerun()
 
-# Tendine sincronizzate Mese e Anno
+# Tendine sincronizzate Mese e Anno (2020 - 2035)
 curr_date = st.session_state.current_date
 
 with nav4:
@@ -488,8 +383,8 @@ with nav4:
     )
 
 with nav5:
-    year_options = list(range(2025, 2036))
-    curr_year_idx = year_options.index(curr_date.year) if curr_date.year in year_options else 1
+    year_options = list(range(2020, 2036))
+    curr_year_idx = year_options.index(curr_date.year) if curr_date.year in year_options else 6
     sel_year = st.selectbox(
         "Anno",
         options=year_options,
@@ -589,7 +484,7 @@ for c_num in crews_to_render:
         stato = shift["stato"]
         is_today = (d == today_date)
         
-        td_classes = ["clickable-cell"]
+        td_classes = []
         if stato == "L":
             td_classes.append("cell-l")
         elif stato in ["L1", "L2", "L3"]:
@@ -604,15 +499,10 @@ for c_num in crews_to_render:
             
         mezzo_html = f'<span class="mezzo-num">{mezzo}</span>' if mezzo else ''
         stato_html = f'<span class="stato-text">{stato}</span>'
-        
-        title_info, details_info = build_cell_info(c_num, d, mezzo, stato)
-        clean_title = title_info.replace('"', '&quot;')
-        clean_details = details_info.replace('"', '&quot;')
+        tooltip_text = build_cell_tooltip(c_num, d, mezzo, stato)
         
         html_table.append(
-            f'<td class="{" ".join(td_classes)}" '
-            f'data-title="{clean_title}" data-details="{clean_details}" '
-            f'title="{clean_details}">'
+            f'<td class="{" ".join(td_classes)}" title="{tooltip_text}">'
             f'<div class="cell-content">{mezzo_html}{stato_html}</div>'
             f'</td>'
         )
