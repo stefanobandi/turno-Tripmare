@@ -121,17 +121,6 @@ st.markdown("""
     .th-today {
         box-shadow: inset 0 -3px 0 #2563eb;
     }
-    .badge-today {
-        display: inline-block;
-        background-color: #2563eb;
-        color: #ffffff;
-        font-size: 8px;
-        padding: 1px 3px;
-        border-radius: 3px;
-        margin-top: 1px;
-        font-weight: 700;
-        text-transform: uppercase;
-    }
 
     /* Celle turno */
     .cell-content {
@@ -450,9 +439,8 @@ for d in dates_to_show:
         th_classes.append("col-today th-today")
         
     title_attr = f'title="{h_name}"' if h_name else ''
-    badge_html = '<div class="badge-today">Oggi</div>' if is_today else ''
     
-    html_table.append(f'<th class="{" ".join(th_classes)}" {title_attr}><span class="header-day-num">{d.strftime("%d")}</span>{badge_html}</th>')
+    html_table.append(f'<th class="{" ".join(th_classes)}" {title_attr}><span class="header-day-num">{d.strftime("%d")}</span></th>')
 html_table.append('</tr>')
 
 # Riga Intestazione 2: Nome Giorno abbreviato
@@ -639,7 +627,7 @@ with st.expander("Qual è la differenza tra i giorni L e le disponibilità L1, L
 with st.expander("Come vengono conteggiate le festività e le semifestività (CCNL Art. 28)?"):
     st.markdown("""
     * **Giorni festivi (CCNL Art. 28 comma 1)**: Il calendario evidenzia in **rosso** tutte le domeniche e i 15 giorni festivi riconosciuti da contratto (compresi il Santo Patrono San Giusto il 3 novembre e la festività del 4 novembre).
-    * **Giorni semifestivi (CCNL Art. 28 comma 2)**: Sono considerate semifestive, e cioè **festive solo nelle ore pomeridiane**, la Vigilia di Natale (24 dicembre) e la Vigilia di Pasqua (Sabato Santo), evidenziate in calendario in color **salmone**.
+    * **Giorni semifestivi (CCNL Art. 28 comma 2)**: Sono considerate semifestive, e cioè **festive solo nelle ore pomeridiane**, la Vigilia di Natale (24 dicembre) e la Vigilia di Pasqua (Sabato Santo), evidenziate in calendario in color **salmone**[cite: 2].
     """)
 
 with st.expander("Come vengono dislocati i rimorchiatori sul porto di Trieste e quali sono i mezzi RSD?"):
