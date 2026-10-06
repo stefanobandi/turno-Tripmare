@@ -5,31 +5,88 @@ from engine import get_week_index, get_shift_for_crew, get_holiday_type
 
 st.set_page_config(page_title="Proiezione turno Tripmare", layout="wide")
 
-# CSS personalizzato responsive e stile popup modale
+# CSS Avanzato per tabella a nastro, sticky headers, evidenziazione oggi e popup
 st.markdown("""
 <style>
     /* Rimuove i margini esterni ingombranti di Streamlit */
     .block-container {
         padding-top: 1rem !important;
-        padding-bottom: 1rem !important;
+        padding-bottom: 2rem !important;
         padding-left: 0.5rem !important;
         padding-right: 0.5rem !important;
         max-width: 100% !important;
     }
 
+    /* Contenitore a scorrimento bidirezionale con altezza controllata per sticky header */
+    .matrix-wrapper {
+        overflow: auto;
+        max-height: 72vh;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        position: relative;
+        -webkit-overflow-scrolling: touch;
+        background-color: #ffffff;
+    }
+
     .matrix-table {
         width: 100%;
-        border-collapse: collapse;
+        border-collapse: separate;
+        border-spacing: 0;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        margin-top: 10px;
-        margin-bottom: 20px;
         table-layout: fixed;
     }
-    
+
     .matrix-table th, .matrix-table td {
-        border: 1px solid #cbd5e1;
+        border-right: 1px solid #cbd5e1;
+        border-bottom: 1px solid #cbd5e1;
         text-align: center;
         padding: 3px 1px;
+    }
+
+    /* Sticky Headers: riga 1 (giorno) e riga 2 (nome) bloccate in alto */
+    .th-row-1 {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        height: 26px;
+    }
+    .th-row-2 {
+        position: sticky;
+        top: 26px;
+        z-index: 10;
+        height: 22px;
+    }
+
+    /* Colonna equipaggi bloccata a sinistra */
+    .crew-label-cell {
+        background-color: #0f172a !important;
+        color: #ffffff !important;
+        font-weight: bold;
+        font-size: 12px;
+        position: sticky;
+        left: 0;
+        z-index: 5;
+        width: 65px;
+        min-width: 65px;
+        border-right: 2px solid #64748b !important;
+    }
+
+    /* Angolo in alto a sinistra (incrocio sticky riga e colonna) */
+    .th-corner-1 {
+        position: sticky;
+        top: 0;
+        left: 0;
+        z-index: 25 !important;
+        background-color: #0f172a !important;
+        color: #ffffff !important;
+    }
+    .th-corner-2 {
+        position: sticky;
+        top: 26px;
+        left: 0;
+        z-index: 25 !important;
+        background-color: #0f172a !important;
+        color: #ffffff !important;
     }
 
     .header-day-num {
@@ -40,7 +97,8 @@ st.markdown("""
         font-size: 10px;
         text-transform: uppercase;
     }
-    
+
+    /* Stili giorni calendario */
     .th-normal {
         background-color: #f1f5f9;
         color: #1e293b;
@@ -54,22 +112,34 @@ st.markdown("""
         color: #7f1d1d !important;
     }
 
-    .crew-label-cell {
-        background-color: #0f172a;
+    /* Evidenziazione Colonna Oggi */
+    .col-today {
+        border-left: 2px solid #2563eb !important;
+        border-right: 2px solid #2563eb !important;
+    }
+    .th-today {
+        box-shadow: inset 0 -3px 0 #2563eb;
+    }
+    .badge-today {
+        display: inline-block;
+        background-color: #2563eb;
         color: #ffffff;
-        font-weight: bold;
-        font-size: 12px;
-        position: sticky;
-        left: 0;
-        z-index: 2;
-        width: 65px;
-        min-width: 65px;
+        font-size: 8px;
+        padding: 1px 3px;
+        border-radius: 3px;
+        margin-top: 1px;
+        font-weight: 700;
+        text-transform: uppercase;
     }
 
+    /* Celle turno */
     .clickable-cell {
         cursor: pointer;
         user-select: none;
-        -webkit-tap-highlight-color: rgba(0,0,0,0.1);
+        -webkit-tap-highlight-color: rgba(37, 99, 235, 0.2);
+    }
+    .clickable-cell:hover {
+        filter: brightness(0.95);
     }
 
     .cell-content {
@@ -91,6 +161,7 @@ st.markdown("""
         font-size: 11px;
     }
 
+    /* Colori turni e riposi (perfettamente coordinati con la legenda) */
     .cell-l {
         background-color: #dcfce7;
         color: #15803d;
@@ -112,52 +183,86 @@ st.markdown("""
     .device-hint {
         font-size: 13px;
         color: #475569;
-        margin-top: -12px;
+        margin-top: -10px;
         margin-bottom: 12px;
         font-style: italic;
     }
 
-    /* Modal / Popup nativo per smartphone e desktop */
-    #infoModal {
-        border: none;
-        border-radius: 12px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-        padding: 20px;
-        max-width: 320px;
-        width: 85%;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-    #infoModal::backdrop {
-        background: rgba(15, 23, 42, 0.6);
+    /* Overlay Modal nativa per Touch su Smartphone e Click su Desktop */
+    .shift-modal-backdrop {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: rgba(15, 23, 42, 0.65);
         backdrop-filter: blur(2px);
+        z-index: 99999;
+        justify-content: center;
+        align-items: center;
     }
-    .modal-title {
+    .shift-modal-box {
+        background-color: #ffffff;
+        border-radius: 12px;
+        padding: 20px;
+        width: 85%;
+        max-width: 320px;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
+        border: 1px solid #cbd5e1;
+        animation: modalFadeIn 0.15s ease-out;
+    }
+    @keyframes modalFadeIn {
+        from { transform: scale(0.92); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+    }
+    .shift-modal-title {
         font-size: 16px;
-        font-weight: bold;
+        font-weight: 800;
         color: #0f172a;
         margin-bottom: 10px;
         border-bottom: 2px solid #e2e8f0;
         padding-bottom: 6px;
     }
-    .modal-body {
+    .shift-modal-body {
         font-size: 14px;
         color: #334155;
-        line-height: 1.5;
+        line-height: 1.6;
         margin-bottom: 16px;
         white-space: pre-line;
     }
-    .modal-btn {
+    .shift-modal-close-btn {
         background-color: #0284c7;
-        color: white;
+        color: #ffffff;
         border: none;
-        padding: 8px 16px;
         border-radius: 6px;
-        font-weight: 600;
+        padding: 10px 14px;
+        font-weight: 700;
+        font-size: 14px;
         width: 100%;
         cursor: pointer;
     }
 
-    /* Modalità Portrait (smartphone in verticale) */
+    /* Box Legenda */
+    .legend-box {
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-top: 15px;
+        font-size: 12px;
+    }
+    .legend-color-pill {
+        display: inline-block;
+        width: 13px;
+        height: 13px;
+        border-radius: 3px;
+        margin-right: 6px;
+        vertical-align: -2px;
+        border: 1px solid #cbd5e1;
+    }
+
+    /* Modalità Portrait su Smartphone */
     @media screen and (orientation: portrait) and (max-width: 768px) {
         .matrix-table {
             table-layout: auto;
@@ -173,7 +278,7 @@ st.markdown("""
         }
     }
 
-    /* Modalità Landscape (smartphone/tablet in orizzontale) */
+    /* Modalità Landscape su Smartphone/Tablet */
     @media screen and (orientation: landscape) and (max-width: 1024px) {
         .matrix-table {
             table-layout: fixed;
@@ -208,26 +313,50 @@ st.markdown("""
     }
 </style>
 
-<!-- Dialog modale HTML nativo con script di ascolto tap/click -->
-<dialog id="infoModal">
-    <div id="modalTitle" class="modal-title">Dettaglio Turno</div>
-    <div id="modalBody" class="modal-body"></div>
-    <button class="modal-btn" onclick="document.getElementById('infoModal').close()">Chiudi</button>
-</dialog>
+<!-- Struttura della Modale HTML e Script Delegato per Smartphone e Desktop -->
+<div id="shiftModalBackdrop" class="shift-modal-backdrop" onclick="closeShiftModal(event)">
+    <div class="shift-modal-box" onclick="event.stopPropagation()">
+        <div id="modalTitleText" class="shift-modal-title"></div>
+        <div id="modalBodyText" class="shift-modal-body"></div>
+        <button class="shift-modal-close-btn" onclick="hideShiftModal()">Chiudi</button>
+    </div>
+</div>
 
 <script>
-function showShiftInfo(title, details) {
-    var modal = document.getElementById('infoModal');
+function openShiftModal(title, body) {
+    var modal = document.getElementById('shiftModalBackdrop');
     if (modal) {
-        document.getElementById('modalTitle').innerText = title;
-        document.getElementById('modalBody').innerText = details;
-        modal.showModal();
+        document.getElementById('modalTitleText').innerText = title;
+        document.getElementById('modalBodyText').innerText = body;
+        modal.style.display = 'flex';
     }
 }
+function hideShiftModal() {
+    var modal = document.getElementById('shiftModalBackdrop');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+function closeShiftModal(e) {
+    if (e.target.id === 'shiftModalBackdrop') {
+        hideShiftModal();
+    }
+}
+// Delegazione eventi touchstart e click su tutta la pagina per massima reattività mobile
+document.addEventListener('click', function(e) {
+    var cell = e.target.closest('.clickable-cell');
+    if (cell) {
+        var t = cell.getAttribute('data-title');
+        var d = cell.getAttribute('data-details');
+        if (t && d) {
+            openShiftModal(t, d);
+        }
+    }
+});
 </script>
 """, unsafe_allow_html=True)
 
-# Mappatura dei mesi in italiano
+# Mappatura dei mesi
 MESI_ITALIANO = [
     "", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
     "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
@@ -239,16 +368,11 @@ MESI_BREVI_ITALIANO = [
 ]
 
 def build_cell_info(crew_num: int, target_date: datetime.date, mezzo: int, stato: str) -> tuple:
-    """
-    Restituisce (titolo, testo_dettagliato) per il popup al tocco e tooltip.
-    Include esplicitamente 'EQ{crew_num} - {data}' anche in testa a details
-    per visualizzarlo sempre in qualsiasi popup o fumetto di sistema.
-    """
+    """Restituisce il titolo e il corpo formattato per la modale e il tooltip."""
     mese_abbr = MESI_BREVI_ITALIANO[target_date.month]
     date_formatted = f"{target_date.strftime('%d')} {mese_abbr} {target_date.year}"
     header_line = f"EQ{crew_num} - {date_formatted}"
-    
-    lines = [header_line]
+    lines = []
 
     if mezzo:
         dislocazione = "Canale" if mezzo in [1, 2] else "Base"
@@ -276,13 +400,13 @@ def build_cell_info(crew_num: int, target_date: datetime.date, mezzo: int, stato
 
     return header_line, "\n".join(lines)
 
-# Inizializzazione session_state per navigazione temporale
+# Inizializzazione session_state per navigazione
 if "current_date" not in st.session_state:
     st.session_state.current_date = datetime.date.today()
 
-# Titolo e Avviso Orientamento Dispositivo
+# Header e Controlli Superiori
 st.title("⚓ Proiezione turno Tripmare")
-st.markdown('<p class="device-hint">📱 Su dispositivi mobili si consiglia la visualizzazione in orizzontale (Landscape). Tocca qualsiasi casella per i dettagli del turno.</p>', unsafe_allow_html=True)
+st.markdown('<p class="device-hint">📱 Su dispositivi mobili si consiglia la visualizzazione in orizzontale (Landscape). Tocca qualsiasi casella per i dettagli.</p>', unsafe_allow_html=True)
 
 c1, c2, c3, c4 = st.columns([1.5, 1.2, 1.2, 1.5])
 
@@ -314,9 +438,9 @@ with c4:
     else:
         num_weeks = 1
 
-# Barra Navigazione Temporale Pulita (Solo Pulsanti ◀ Precedente | Oggi | Successivo ▶)
+# Barra di Navigazione Mese/Anno e Pulsanti Rapidi
 st.write("---")
-nav1, nav2, nav3 = st.columns([1, 1, 1])
+nav1, nav2, nav3, nav4, nav5 = st.columns([1, 1, 1, 1.2, 1.2])
 
 def advance_date(direction: int):
     d = st.session_state.current_date
@@ -351,8 +475,38 @@ with nav3:
         advance_date(1)
         st.rerun()
 
-# Calcolo delle date da visualizzare
+# Tendine sincronizzate Mese e Anno
+curr_date = st.session_state.current_date
+
+with nav4:
+    sel_month = st.selectbox(
+        "Mese",
+        options=list(range(1, 13)),
+        index=curr_date.month - 1,
+        format_func=lambda m: MESI_ITALIANO[m],
+        label_visibility="collapsed"
+    )
+
+with nav5:
+    year_options = list(range(2025, 2036))
+    curr_year_idx = year_options.index(curr_date.year) if curr_date.year in year_options else 1
+    sel_year = st.selectbox(
+        "Anno",
+        options=year_options,
+        index=curr_year_idx,
+        label_visibility="collapsed"
+    )
+
+# Aggiornamento automatico se l'utente cambia tendina mese/anno
+if sel_month != curr_date.month or sel_year != curr_date.year:
+    max_days = calendar.monthrange(sel_year, sel_month)[1]
+    new_day = min(curr_date.day, max_days)
+    st.session_state.current_date = datetime.date(sel_year, sel_month, new_day)
+    st.rerun()
+
+# Date da visualizzare
 curr = st.session_state.current_date
+today_date = datetime.date.today()
 dates_to_show = []
 
 if time_horizon == "Mese Completo":
@@ -377,35 +531,53 @@ elif view_type == "Terzina":
 else:
     crews_to_render = list(range(1, 22))
 
-# Generazione della tabella HTML orizzontale a nastro
-html_table = ['<div style="overflow-x: auto; -webkit-overflow-scrolling: touch;"><table class="matrix-table">']
+# Generazione della tabella HTML con sticky header e colonna oggi evidenziata
+html_table = ['<div class="matrix-wrapper"><table class="matrix-table">']
 
 # Riga Intestazione 1: Numero Giorno
-html_table.append('<thead><tr><th class="crew-label-cell">Giorno</th>')
+html_table.append('<thead><tr><th class="crew-label-cell th-corner-1">Giorno</th>')
 day_names_it = ["lu", "ma", "me", "gi", "ve", "sa", "do"]
 
 for d in dates_to_show:
     is_hol, is_semi, h_name = get_holiday_type(d)
-    th_class = "th-normal"
+    is_today = (d == today_date)
+    
+    th_classes = ["th-row-1"]
     if is_hol:
-        th_class = "th-holiday"
+        th_classes.append("th-holiday")
     elif is_semi:
-        th_class = "th-semiholiday"
+        th_classes.append("th-semiholiday")
+    else:
+        th_classes.append("th-normal")
+        
+    if is_today:
+        th_classes.append("col-today th-today")
+        
     title_attr = f'title="{h_name}"' if h_name else ''
-    html_table.append(f'<th class="{th_class}" {title_attr}><span class="header-day-num">{d.strftime("%d")}</span></th>')
+    badge_html = '<div class="badge-today">Oggi</div>' if is_today else ''
+    
+    html_table.append(f'<th class="{" ".join(th_classes)}" {title_attr}><span class="header-day-num">{d.strftime("%d")}</span>{badge_html}</th>')
 html_table.append('</tr>')
 
 # Riga Intestazione 2: Nome Giorno abbreviato
-html_table.append('<tr><th class="crew-label-cell">Eq.</th>')
+html_table.append('<tr><th class="crew-label-cell th-corner-2">Eq.</th>')
 for d in dates_to_show:
     is_hol, is_semi, _ = get_holiday_type(d)
-    th_class = "th-normal"
+    is_today = (d == today_date)
+    
+    th_classes = ["th-row-2"]
     if is_hol:
-        th_class = "th-holiday"
+        th_classes.append("th-holiday")
     elif is_semi:
-        th_class = "th-semiholiday"
+        th_classes.append("th-semiholiday")
+    else:
+        th_classes.append("th-normal")
+        
+    if is_today:
+        th_classes.append("col-today")
+        
     day_name = day_names_it[d.weekday()]
-    html_table.append(f'<th class="{th_class}"><span class="header-day-name">{day_name}</span></th>')
+    html_table.append(f'<th class="{" ".join(th_classes)}"><span class="header-day-name">{day_name}</span></th>')
 html_table.append('</tr></thead><tbody>')
 
 # Righe degli equipaggi
@@ -415,28 +587,32 @@ for c_num in crews_to_render:
         shift = get_shift_for_crew(c_num, d)
         mezzo = shift["mezzo"]
         stato = shift["stato"]
+        is_today = (d == today_date)
         
-        # Classificazione cella
+        td_classes = ["clickable-cell"]
         if stato == "L":
-            cell_cls = "cell-l"
+            td_classes.append("cell-l")
         elif stato in ["L1", "L2", "L3"]:
-            cell_cls = "cell-l-disp"
+            td_classes.append("cell-l-disp")
         elif stato.startswith("R"):
-            cell_cls = "cell-reserve"
+            td_classes.append("cell-reserve")
         else:
-            cell_cls = "cell-work"
+            td_classes.append("cell-work")
+            
+        if is_today:
+            td_classes.append("col-today")
             
         mezzo_html = f'<span class="mezzo-num">{mezzo}</span>' if mezzo else ''
         stato_html = f'<span class="stato-text">{stato}</span>'
         
-        # Testo del tooltip / popup
         title_info, details_info = build_cell_info(c_num, d, mezzo, stato)
-        clean_title = title_info.replace("'", "\\'")
-        clean_details = details_info.replace("\n", "\\n").replace("'", "\\'")
-        onclick_attr = f"onclick=\"showShiftInfo('{clean_title}', '{clean_details}')\""
+        clean_title = title_info.replace('"', '&quot;')
+        clean_details = details_info.replace('"', '&quot;')
         
         html_table.append(
-            f'<td class="{cell_cls} clickable-cell" title="{details_info}" {onclick_attr}>'
+            f'<td class="{" ".join(td_classes)}" '
+            f'data-title="{clean_title}" data-details="{clean_details}" '
+            f'title="{clean_details}">'
             f'<div class="cell-content">{mezzo_html}{stato_html}</div>'
             f'</td>'
         )
@@ -446,15 +622,36 @@ html_table.append('</tbody></table></div>')
 
 st.markdown("".join(html_table), unsafe_allow_html=True)
 
-# Legenda a fondo pagina
-leg1, leg2, leg3, leg4, leg5 = st.columns(5)
-with leg1:
-    st.markdown("🔴 **Festivo / Dom**")
-with leg2:
-    st.markdown("🟠 **Semifestivo**")
-with leg3:
-    st.markdown("🟢 **Riposo (L)**")
-with leg4:
-    st.markdown("🟡 **Disp. (L1-3)**")
-with leg5:
-    st.markdown("⚪ **Riserva (R)**")
+# Legenda Dettagliata ed Esplicativa a fondo pagina
+st.markdown("""
+<div class="legend-box">
+    <div style="font-weight: bold; font-size: 13px; margin-bottom: 8px; color: #0f172a;">LEGENDA OPERATIVA E CALENDARIO</div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+        <div>
+            <b>Turni Operativi:</b><br>
+            • <span class="legend-color-pill" style="background-color: #ffffff;"></span><b>08:20</b>: Diurno (dalle 08:00 alle 20:00)<br>
+            • <span class="legend-color-pill" style="background-color: #ffffff;"></span><b>20</b>: Montante notte (dalle 20:00)<br>
+            • <span class="legend-color-pill" style="background-color: #ffffff;"></span><b>08</b>: Smontante notte (fino alle 08:00)
+        </div>
+        <div>
+            <b>Riposi e Riserve:</b><br>
+            • <span class="legend-color-pill" style="background-color: #dcfce7;"></span><b>L</b>: Libero (riposo totale)<br>
+            • <span class="legend-color-pill" style="background-color: #fef9c3;"></span><b>L1 / L2 / L3</b>: Disponibilità L1, L2 o L3<br>
+            • <span class="legend-color-pill" style="background-color: #e2e8f0;"></span><b>R1 / R2 / R3</b>: Settimana di Riserva
+        </div>
+        <div>
+            <b>Rimorchiatori e Dislocazione:</b><br>
+            • <b>Mezzi 1 e 2</b>: Canale<br>
+            • <b>Mezzi 3 e 4</b>: Base<br>
+            • <b>Dispari (1, 3)</b>: Voith (VWT)<br>
+            • <b>Pari (2, 4)</b>: Azimutale (ASD)
+        </div>
+        <div>
+            <b>Calendario:</b><br>
+            • <span class="legend-color-pill" style="background-color: #dc2626;"></span><b>Rosso</b>: Festivo CCNL (15gg) / Domenica<br>
+            • <span class="legend-color-pill" style="background-color: #fca5a5;"></span><b>Salmone</b>: Semifestivo (24 Dic / Sab. Santo)<br>
+            • <span class="legend-color-pill" style="background-color: #ffffff; border: 2px solid #2563eb;"></span><b>Bordo Blu</b>: Giornata odierna (Oggi)
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
