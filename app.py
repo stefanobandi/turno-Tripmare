@@ -547,7 +547,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Sezione Download Accordi e Contratti (PDF) - Cerca direttamente nella root del repository
+# Sezione Download Accordi e Contratti (PDF)
 st.write("---")
 st.subheader("📄 Documentazione Contrattuale e Accordi")
 
@@ -570,14 +570,13 @@ files_config = [
     {
         "label": "📥 Ormeggi Trieste",
         "filename": "ormeggi_trieste.pdf",
-        "desc": "Regolamento e accordi ormeggi porto di Trieste"
+        "desc": "Piantina ormeggi Trieste"
     }
 ]
 
 doc_cols = st.columns(4)
 
 for idx, item in enumerate(files_config):
-    # Cerca il file sia direttamente nella root sia nell'eventuale cartella documenti
     direct_path = item["filename"]
     subfolder_path = os.path.join("documenti", item["filename"])
     
@@ -601,6 +600,28 @@ for idx, item in enumerate(files_config):
 # Sezione FAQ (Espandibili)
 st.write("---")
 st.subheader("❓ Domande Frequenti (FAQ)")
+
+with st.expander("**Cosa segno sul foglio ore in caso di scivolamento?**"):
+    st.markdown("""
+    In caso di **scivolamento**, la corretta rendicontazione da indicare sul foglio presenze è la seguente (*rif. CIA, pag. 29*):
+    * **Dalle ore 20:00 alle ore 24:00**: straordinario calcolato con formula **2x1** (pari a **8 ore di straordinario ad aliquota base diurna**).
+    * **Dalle ore 00:00 alle ore 08:00**: **6 ore di straordinario notturno** (ad aliquota feriale o festiva, a seconda del calendario della giornata) + **2 ore di straordinario diurno** (feriale o festivo) + maturazione di **1 giorno compensativo**.
+    """)
+
+with st.expander("**Cosa segno se vengo messo in turno 20-08 dopo aver già preso servizio la mattina alle 08?**"):
+    st.markdown("""
+    La rendicontazione oraria varia in base all'effettivo riposo intercorso tra le prestazioni:
+    
+    * **Caso 1 – Preso servizio alle 08:00 e reso libero entro le ore 12:00**:
+      * **Dalle 08:00 alle 12:00**: orario e compenso normale.
+      * **Dalle 22:00 alle 24:00**: straordinario calcolato con formula **3x1** *(la ripresa del servizio avviene alle 22:00 per garantire il periodo minimo di riposo)*.
+      * **Dalle 00:00 alle 08:00**: stessa rendicontazione prevista per lo scivolamento (6 ore straordinario notturno feriale/festivo + 2 ore straordinario diurno feriale/festivo + 1 giorno compensativo).
+
+    * **Caso 2 – Preso servizio alle 08:00 e continuato senza riposo**:
+      * **Dalle 08:00 alle 20:00**: orario e compenso normale.
+      * **Dalle 20:00 alle 24:00**: straordinario notturno (feriale o festivo).
+      * **Dalle 00:00 alle 08:00**: straordinario come da scivolamento (6 ore notturne + 2 ore diurne feriali/festive) + **2 giorni compensativi** + applicazione straordinario **3x1** qualora venga superata la 14ª ora complessiva di prestazione.
+    """)
 
 with st.expander("Come funziona la rotazione delle 21 settimane e delle riserve?"):
     st.write("""
