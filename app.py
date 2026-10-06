@@ -547,11 +547,9 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Sezione Download Accordi e Contratti (PDF)
+# Sezione Download Accordi e Contratti (PDF) - Cerca direttamente nella root del repository
 st.write("---")
 st.subheader("📄 Documentazione Contrattuale e Accordi")
-
-DOCS_DIR = "documenti"
 
 files_config = [
     {
@@ -579,7 +577,12 @@ files_config = [
 doc_cols = st.columns(4)
 
 for idx, item in enumerate(files_config):
-    file_path = os.path.join(DOCS_DIR, item["filename"])
+    # Cerca il file sia direttamente nella root sia nell'eventuale cartella documenti
+    direct_path = item["filename"]
+    subfolder_path = os.path.join("documenti", item["filename"])
+    
+    file_path = direct_path if os.path.exists(direct_path) else subfolder_path
+    
     with doc_cols[idx]:
         st.markdown(f"**{item['desc']}**")
         if os.path.exists(file_path):
@@ -593,7 +596,7 @@ for idx, item in enumerate(files_config):
                 use_container_width=True
             )
         else:
-            st.button(f"{item['label']} (In attesa)", disabled=True, use_container_width=True, help="Carica il file PDF nella cartella 'documenti' su GitHub")
+            st.button(f"{item['label']} (Non trovato)", disabled=True, use_container_width=True, help="Verifica che il nome del file coincida esattamente con quello previsto.")
 
 # Sezione FAQ (Espandibili)
 st.write("---")
