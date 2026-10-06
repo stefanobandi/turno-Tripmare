@@ -1,11 +1,12 @@
 import streamlit as st
 import datetime
 import calendar
+import os
 from engine import get_week_index, get_shift_for_crew, get_holiday_type
 
 st.set_page_config(page_title="Proiezione turno Tripmare", layout="wide")
 
-# CSS Avanzato per tabella a nastro, sticky headers, evidenziazione oggi e legenda
+# CSS Avanzato per tabella a nastro, sticky headers, evidenziazione oggi e sezioni informative
 st.markdown("""
 <style>
     /* Rimuove i margini esterni ingombranti di Streamlit */
@@ -512,7 +513,7 @@ html_table.append('</tbody></table></div>')
 
 st.markdown("".join(html_table), unsafe_allow_html=True)
 
-# Legenda Dettagliata ed Esplicativa a fondo pagina
+# Legenda Dettagliata ed Esplicativa
 st.markdown("""
 <div class="legend-box">
     <div style="font-weight: bold; font-size: 13px; margin-bottom: 8px; color: #0f172a;">LEGENDA OPERATIVA E CALENDARIO</div>
@@ -545,3 +546,80 @@ st.markdown("""
     </div>
 </div>
 """, unsafe_allow_html=True)
+
+# Sezione Download Accordi e Contratti (PDF)
+st.write("---")
+st.subheader("📄 Documentazione Contrattuale e Accordi")
+
+DOCS_DIR = "documenti"
+
+files_config = [
+    {
+        "label": "📥 CIA Tripmare 2018",
+        "filename": "cia_tripmare_2018.pdf",
+        "desc": "Contratto Integrativo Aziendale Tripmare"
+    },
+    {
+        "label": "📥 CCNL Sez. 11 Rimorchio",
+        "filename": "ccnl_sez11_rimorchio.pdf",
+        "desc": "CCNL Sezione 11 - Rimorchio Portuale"
+    },
+    {
+        "label": "📥 Aggiornamento CCNL 2024",
+        "filename": "aggiornamento_ccnl_2024.pdf",
+        "desc": "Accordo di rinnovo e aggiornamento 2024"
+    },
+    {
+        "label": "📥 Ormeggi Trieste",
+        "filename": "ormeggi_trieste.pdf",
+        "desc": "Regolamento e accordi ormeggi porto di Trieste"
+    }
+]
+
+doc_cols = st.columns(4)
+
+for idx, item in enumerate(files_config):
+    file_path = os.path.join(DOCS_DIR, item["filename"])
+    with doc_cols[idx]:
+        st.markdown(f"**{item['desc']}**")
+        if os.path.exists(file_path):
+            with open(file_path, "rb") as f:
+                pdf_data = f.read()
+            st.download_button(
+                label=item["label"],
+                data=pdf_data,
+                file_name=item["filename"],
+                mime="application/pdf",
+                use_container_width=True
+            )
+        else:
+            st.button(f"{item['label']} (In attesa)", disabled=True, use_container_width=True, help="Carica il file PDF nella cartella 'documenti' su GitHub")
+
+# Sezione FAQ (Espandibili)
+st.write("---")
+st.subheader("❓ Domande Frequenti (FAQ)")
+
+with st.expander("Come funziona la rotazione delle 21 settimane e delle riserve?"):
+    st.write("""
+    I 21 equipaggi sono suddivisi in 7 terzine (da Terzina 1 a Terzina 7).
+    Il ciclo completo dura 21 settimane (147 giorni) suddiviso in 3 tranche temporali da 7 settimane ciascuna.
+    Durante ogni tranche, a turno, ogni equipaggio della terzina svolge una settimana di riserva (R1, R2 o R3) con un punto di rientro prestabilito (L1, L2 o L3) che determina l'aggancio sul ciclo di lavoro base di 18 giorni.
+    """)
+
+with st.expander("Qual è la differenza tra i giorni L e le disponibilità L1, L2, L3?"):
+    st.write("""
+    Il codice **L** rappresenta il giorno di libero puro (riposo totale).
+    I codici **L1**, **L2** e **L3** rappresentano i giorni di disponibilità previsti dalla rotazione del ciclo, che precedono o seguono i blocchi di servizio sui mezzi operativi.
+    """)
+
+with st.expander("Come vengono conteggiate le festività (CCNL e patronali)?"):
+    st.write("""
+    Il calendario evidenzia in rosso tutte le domeniche e le 15 festività previste da contratto (compresi il Santo Patrono San Giusto il 3 novembre e la ricorrenza del 4 novembre).
+    La Vigilia di Pasqua (Sabato Santo) e la Vigilia di Natale (24 dicembre) sono evidenziate in color salmone come giornate semifestive.
+    """)
+
+with st.expander("Come vengono dislocati i rimorchiatori sul porto di Trieste?"):
+    st.write("""
+    I Rimorchiatori contrassegnati con i numeri **1 e 2** fanno capo alla postazione del **Canale**, mentre i numeri **3 e 4** fanno capo alla **Base**.
+    I mezzi con numero dispari (1 e 3) sono dotati di propulsione cicloidale Voith Schneider (VWT), mentre i numeri pari (2 e 4) sono dotati di propulsione azimutale (ASD).
+    """)
