@@ -2,9 +2,20 @@ import streamlit as st
 import datetime
 import calendar
 import os
-from engine import get_week_index, get_shift_for_crew, get_holiday_type
+from engine import (
+    get_week_index,
+    get_shift_for_crew,
+    get_holiday_type,
+    validate_day_integrity,
+    validate_schedule_period,
+    ANCHOR_DATE
+)
 
 st.set_page_config(page_title="Proiezione turno Tripmare", layout="wide")
+
+# Controllo parametro debug nell'URL (?debug=true)
+query_params = st.query_params
+debug_mode = query_params.get("debug", "").lower() in ["true", "1", "yes"]
 
 # CSS Avanzato per tabella a nastro, sticky headers, evidenziazione oggi e sezioni informative
 st.markdown("""
@@ -304,7 +315,12 @@ with c1:
 
 with c2:
     if view_type == "Equipaggio Specifico":
-        selected_crew = st.selectbox("Seleziona Equipaggio", options=list(range(1, 22)), index=7)
+        selected_crew = st.selectbox(
+            "Seleziona Equipaggio",
+            options=list(range(1, 22)),
+            index=7,
+            format_func=lambda x: f"Equipaggio {x} 🎱" if x == 8 else f"Equipaggio {x}"
+        )
     elif view_type == "Terzina":
         terzina_choice = st.selectbox(
             "Seleziona Terzina",
@@ -406,6 +422,49 @@ else:
     total_days = num_weeks * 7
     dates_to_show = [start_monday + datetime.timedelta(days=i) for i in range(total_days)]
     st.markdown(f"### Visualizzazione **{num_weeks} Settimana/e** (dal {dates_to_show[0].strftime('%d/%m/%Y')} al {dates_to_show[-1].strftime('%d/%m/%Y')})")
+
+# Validazione di integrità del periodo corrente
+validation_report = validate_schedule_period(dates_to_show)
+
+if not validation_report["is_valid"]:
+    st.error(
+        "⚠️ **Attenzione: Rilevata anomalia nel calcolo del turno per il periodo selezionato. "
+        "I dati visualizzati potrebbero non essere affidabili. Si prega cortesemente di contattare l'amministratore (Stefano).**"
+    )
+
+# Pannello Riservato Debug Mode (visibile solo con ?debug=true nell'URL)
+if debug_mode:
+    with st.expander("🛠️ PANNELLO DIAGNOSTICO SVILUPPATORE (Debug Mode Attivo)", expanded=True):
+        st.write("### Parametri di Ancoraggio e Sfasamento Temporale")
+        target_ref = dates_to_show[0]
+        target_monday = target_ref - datetime.timedelta(days=target_ref.weekday())
+        delta_days = (target_monday - ANCHOR_DATE).days
+        delta_weeks = delta_days // 7
+        curr_week_idx = delta_weeks % 21
+
+        d_col1, d_col2, d_col3, d_col4 = st.columns(4)
+        d_col1.metric("Data Ancora Master", ANCHOR_DATE.strftime("%d/%m/%Y"))
+        d_col2.metric("Delta Giorni", f"{delta_days} gg")
+        d_col3.metric("Delta Settimane", f"{delta_weeks} sett")
+        d_col4.metric("Indice Settimana (mod 21)", f"Settimana {curr_week_idx + 1} (idx {curr_week_idx})")
+
+        st.write("---")
+        st.write("### Verifica Integrità Periodo Visualizzato")
+        if validation_report["is_valid"]:
+            st.success(f"✅ Quadratura verificata al 100% per tutti i {validation_report['total_days']} giorni del periodo selezionato.")
+        else:
+            st.error(f"❌ Rilevate {validation_report['invalid_count']} giornate non conformi su {validation_report['total_days']} giorni.")
+            for inv in validation_report["invalid_days"]:
+                st.write(f"**Data {inv['date'].strftime('%d/%m/%Y')}**: {', '.join(inv['errors'])}")
+
+        st.write("---")
+        st.write("### Test Ciclo Master Completo (147 giorni continui)")
+        master_dates = [ANCHOR_DATE + datetime.timedelta(days=i) for i in range(21 * 7)]
+        master_report = validate_schedule_period(master_dates)
+        if master_report["is_valid"]:
+            st.success("✅ Il ciclo master di 21 settimane (147 giorni) rispetta integralmente tutti i vincoli operativi (4-4-4-3-1-1-1-1-1-1).")
+        else:
+            st.error(f"❌ Anomalie nel ciclo master su {master_report['invalid_count']} giorni.")
 
 # Determinazione della lista equipaggi da stampare
 if view_type == "Equipaggio Specifico":
@@ -627,7 +686,7 @@ with st.expander("Qual è la differenza tra i giorni L e le disponibilità L1, L
 with st.expander("Come vengono conteggiate le festività e le semifestività (CCNL Art. 28)?"):
     st.markdown("""
     * **Giorni festivi (CCNL Art. 28 comma 1)**: Il calendario evidenzia in **rosso** tutte le domeniche e i 15 giorni festivi riconosciuti da contratto (compresi il Santo Patrono San Giusto il 3 novembre e la festività del 4 novembre).
-    * **Giorni semifestivi (CCNL Art. 28 comma 2)**: Sono considerate semifestive, e cioè **festive solo nelle ore pomeridiane**, la Vigilia di Natale (24 dicembre) e la Vigilia di Pasqua (Sabato Santo), evidenziate in calendario in color **salmone**[cite: 2].
+    * **Giorni semifestivi (CCNL Art. 28 comma 2)**: Sono considerate semifestive, e cioè **festive solo nelle ore pomeridiane**, la Vigilia di Natale (24 dicembre) e la Vigilia di Pasqua (Sabato Santo), evidenziate in calendario in color **salmone**.
     """)
 
 with st.expander("Come vengono dislocati i rimorchiatori sul porto di Trieste e quali sono i mezzi RSD?"):
