@@ -198,20 +198,7 @@ SCHEDULE_MATRIX = build_21week_schedule_matrix()
 def get_shift_for_crew(crew_num: int, target_date: datetime.date) -> dict:
     """
     Restituisce il turno e lo stato festivo per una data ed equipaggio specifici.
-    Include test controllato: forza Eq. 4 a 'L' il 4 aprile 2030 per testare l'integrità.
     """
-    # --- TEST DI SIMULAZIONE ERRORE (4 Aprile 2030) ---
-    if target_date == datetime.date(2030, 4, 4) and crew_num == 4:
-        is_holiday, is_semiholiday, holiday_name = get_holiday_type(target_date)
-        return {
-            "mezzo": None,
-            "stato": "L",
-            "is_holiday": is_holiday,
-            "is_semiholiday": is_semiholiday,
-            "holiday_name": holiday_name
-        }
-    # --------------------------------------------------
-
     week_idx = get_week_index(target_date)
     day_idx = target_date.weekday()
     shift = SCHEDULE_MATRIX.get((crew_num, week_idx, day_idx), {
