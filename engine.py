@@ -198,7 +198,20 @@ SCHEDULE_MATRIX = build_21week_schedule_matrix()
 def get_shift_for_crew(crew_num: int, target_date: datetime.date) -> dict:
     """
     Restituisce il turno e lo stato festivo per una data ed equipaggio specifici.
+    Include test controllato: forza Eq. 4 a 'L' il 4 aprile 2030 per testare l'integrità.
     """
+    # --- TEST DI SIMULAZIONE ERRORE (4 Aprile 2030) ---
+    if target_date == datetime.date(2030, 4, 4) and crew_num == 4:
+        is_holiday, is_semiholiday, holiday_name = get_holiday_type(target_date)
+        return {
+            "mezzo": None,
+            "stato": "L",
+            "is_holiday": is_holiday,
+            "is_semiholiday": is_semiholiday,
+            "holiday_name": holiday_name
+        }
+    # --------------------------------------------------
+
     week_idx = get_week_index(target_date)
     day_idx = target_date.weekday()
     shift = SCHEDULE_MATRIX.get((crew_num, week_idx, day_idx), {
@@ -261,7 +274,6 @@ def validate_day_integrity(target_date: datetime.date) -> dict:
             else:
                 mezzi_assegnati[st_val].append((crew_num, m_val))
                 
-    # Verifica conteggi numerici
     expected_counts = {
         "20": 4,
         "08": 4,
@@ -279,7 +291,6 @@ def validate_day_integrity(target_date: datetime.date) -> dict:
         if counts[key] != exp_val:
             errors.append(f"Stato '{key}': trovati {counts[key]} equipaggi invece di {exp_val}")
             
-    # Verifica non sovrapposizione e completezza mezzi (1, 2, 3, 4)
     for shift_type in ["20", "08", "08:20"]:
         assigned_m = [item[1] for item in mezzi_assegnati[shift_type]]
         sorted_m = sorted(assigned_m)
@@ -311,3 +322,81 @@ def validate_schedule_period(dates_list: list) -> dict:
         "invalid_count": len(invalid_days),
         "invalid_days": invalid_days
     }
+
+def generate_ics_calendar(crew_num: int, dates_list: list) -> str:
+    """
+    Genera una stringa formattata standard iCalendar (.ics) per l'equipaggio selezionato.
+    Esclude i liberi (L) e gli smontanti (08) già coperti dal montante notte (20:00-08:00).
+    """
+    now_stamp = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Tripmare S.p.A.//Turno Rimorchiatori//IT",
+        f"X-WR-CALNAME:Turno Tripmare - Eq. {crew_num}",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH"
+    ]
+
+    for d in dates_list:
+        shift = get_shift_for_crew(crew_num, d)
+        mezzo = shift.get("mezzo")
+        stato = shift.get("stato")
+        
+        if stato in ["L", "08"]:
+            continue
+
+        dislocazione = f"Rimorchiatore {mezzo} ({'SIOT' if mezzo in [1, 2] else 'PFV/Base'})" if mezzo else ""
+        date_str = d.strftime("%Y%m%d")
+        next_d_str = (d + datetime.timedelta(days=1)).strftime("%Y%m%d")
+        uid = f"tripmare-eq{crew_num}-{date_str}-{stato}@trieste.harbour"
+
+        if stato == "20":
+            lines.extend([
+                "BEGIN:VEVENT",
+                f"UID:{uid}",
+                f"DTSTAMP:{now_stamp}",
+                f"DTSTART:{date_str}T200000",
+                f"DTEND:{next_d_str}T080000",
+                f"SUMMARY:⚓ Eq.{crew_num} - Notte (20:00 - 08:00)",
+                f"DESCRIPTION:Turno Notturno su {dislocazione}",
+                f"LOCATION:{dislocazione}",
+                "END:VEVENT"
+            ])
+        elif stato == "08:20":
+            lines.extend([
+                "BEGIN:VEVENT",
+                f"UID:{uid}",
+                f"DTSTAMP:{now_stamp}",
+                f"DTSTART:{date_str}T080000",
+                f"DTEND:{date_str}T200000",
+                f"SUMMARY:⚓ Eq.{crew_num} - Diurno (08:00 - 20:00)",
+                f"DESCRIPTION:Turno Diurno su {dislocazione}",
+                f"LOCATION:{dislocazione}",
+                "END:VEVENT"
+            ])
+        elif stato in ["L1", "L2", "L3"]:
+            lines.extend([
+                "BEGIN:VEVENT",
+                f"UID:{uid}",
+                f"DTSTAMP:{now_stamp}",
+                f"DTSTART;VALUE=DATE:{date_str}",
+                f"DTEND;VALUE=DATE:{next_d_str}",
+                f"SUMMARY:📞 Eq.{crew_num} - Disponibilità {stato}",
+                f"DESCRIPTION:Giornata di disponibilità attiva {stato}",
+                "END:VEVENT"
+            ])
+        elif stato.startswith("R"):
+            lines.extend([
+                "BEGIN:VEVENT",
+                f"UID:{uid}",
+                f"DTSTAMP:{now_stamp}",
+                f"DTSTART;VALUE=DATE:{date_str}",
+                f"DTEND;VALUE=DATE:{next_d_str}",
+                f"SUMMARY:🛡️ Eq.{crew_num} - Riserva {stato}",
+                f"DESCRIPTION:Settimana di Riserva ({stato})",
+                "END:VEVENT"
+            ])
+
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(lines)
