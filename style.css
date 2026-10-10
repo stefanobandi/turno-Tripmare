@@ -1,0 +1,241 @@
+/* Rimuove i margini esterni ingombranti di Streamlit */
+.block-container {
+    padding-top: 1rem !important;
+    padding-bottom: 2rem !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+    max-width: 100% !important;
+}
+
+/* Contenitore a scorrimento bidirezionale con altezza controllata per sticky header */
+.matrix-wrapper {
+    overflow: auto;
+    max-height: 72vh;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    position: relative;
+    -webkit-overflow-scrolling: touch;
+    background-color: #ffffff;
+}
+
+.matrix-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    table-layout: fixed;
+}
+
+.matrix-table th, .matrix-table td {
+    border-right: 1px solid #cbd5e1;
+    border-bottom: 1px solid #cbd5e1;
+    text-align: center;
+    padding: 3px 1px;
+}
+
+/* Sticky Headers: riga 1 (giorno) e riga 2 (nome) bloccate in alto */
+.th-row-1 {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    height: 26px;
+}
+.th-row-2 {
+    position: sticky;
+    top: 26px;
+    z-index: 10;
+    height: 22px;
+}
+
+/* Colonna equipaggi bloccata a sinistra */
+.crew-label-cell {
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+    font-weight: bold;
+    font-size: 12px;
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    width: 65px;
+    min-width: 65px;
+    border-right: 2px solid #64748b !important;
+}
+
+/* Angolo in alto a sinistra (incrocio sticky riga e colonna) */
+.th-corner-1 {
+    position: sticky;
+    top: 0;
+    left: 0;
+    z-index: 25 !important;
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+}
+.th-corner-2 {
+    position: sticky;
+    top: 26px;
+    left: 0;
+    z-index: 25 !important;
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+}
+
+.header-day-num {
+    font-size: 12px;
+    font-weight: bold;
+}
+.header-day-name {
+    font-size: 10px;
+    text-transform: uppercase;
+}
+
+/* Stili giorni calendario */
+.th-normal {
+    background-color: #f1f5f9;
+    color: #1e293b;
+}
+.th-holiday {
+    background-color: #dc2626 !important;
+    color: #ffffff !important;
+}
+.th-semiholiday {
+    background-color: #fca5a5 !important;
+    color: #7f1d1d !important;
+}
+
+/* Evidenziazione Colonna Oggi */
+.col-today {
+    border-left: 2px solid #2563eb !important;
+    border-right: 2px solid #2563eb !important;
+}
+.th-today {
+    box-shadow: inset 0 -3px 0 #2563eb;
+}
+
+/* Celle turno */
+.cell-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 44px;
+    line-height: 1.1;
+    cursor: default;
+}
+
+.mezzo-num {
+    font-weight: 800;
+    font-size: 12px;
+    color: #0284c7;
+}
+.stato-text {
+    font-weight: 600;
+    font-size: 11px;
+}
+
+/* Colori turni e riposi coordinati con la legenda */
+.cell-l {
+    background-color: #dcfce7;
+    color: #15803d;
+}
+.cell-l-disp {
+    background-color: #fef9c3;
+    color: #854d0e;
+}
+.cell-reserve {
+    background-color: #e2e8f0;
+    color: #334155;
+    font-weight: bold;
+}
+.cell-work {
+    background-color: #ffffff;
+    color: #0f172a;
+}
+
+.device-hint {
+    font-size: 13px;
+    color: #475569;
+    margin-top: -10px;
+    margin-bottom: 12px;
+    font-style: italic;
+}
+
+.integrity-ok-badge {
+    font-size: 12px;
+    color: #15803d;
+    background-color: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 6px;
+    padding: 5px 10px;
+    display: inline-block;
+    margin-top: 8px;
+    font-weight: 600;
+}
+
+/* Box Legenda */
+.legend-box {
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-top: 15px;
+    font-size: 12px;
+}
+.legend-color-pill {
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    border-radius: 3px;
+    margin-right: 6px;
+    vertical-align: -2px;
+    border: 1px solid #cbd5e1;
+}
+
+/* Modalità Portrait su Smartphone */
+@media screen and (orientation: portrait) and (max-width: 768px) {
+    .matrix-table {
+        table-layout: auto;
+    }
+    .matrix-table th, .matrix-table td {
+        min-width: 38px;
+        padding: 3px 2px;
+    }
+    .crew-label-cell {
+        min-width: 55px;
+        width: 55px;
+        font-size: 11px;
+    }
+}
+
+/* Modalità Landscape su Smartphone/Tablet */
+@media screen and (orientation: landscape) and (max-width: 1024px) {
+    .matrix-table {
+        table-layout: fixed;
+        width: 100%;
+    }
+    .matrix-table th, .matrix-table td {
+        min-width: 0 !important;
+        padding: 2px 0px !important;
+    }
+    .header-day-num {
+        font-size: 10px !important;
+    }
+    .header-day-name {
+        font-size: 8px !important;
+    }
+    .crew-label-cell {
+        width: 45px !important;
+        min-width: 45px !important;
+        font-size: 10px !important;
+        padding: 2px 1px !important;
+    }
+    .cell-content {
+        height: 38px !important;
+    }
+    .mezzo-num {
+        font-size: 10px !important;
+    }
+    .stato-text {
+        font-size: 9px !important;
+        letter-spacing: -0.5px;
+    }
+}
