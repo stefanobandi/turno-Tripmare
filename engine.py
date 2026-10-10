@@ -211,3 +211,103 @@ def get_shift_for_crew(crew_num: int, target_date: datetime.date) -> dict:
     shift["is_semiholiday"] = is_semiholiday
     shift["holiday_name"] = holiday_name
     return shift
+
+def validate_day_integrity(target_date: datetime.date) -> dict:
+    """
+    Valida la quadratura esatta di tutti i 21 equipaggi per una specifica data.
+    Regole richieste:
+    - Esattamente 4 equipaggi montanti notte ('20'), uno per ciascun mezzo [1, 2, 3, 4]
+    - Esattamente 4 equipaggi smontanti notte ('08'), uno per ciascun mezzo [1, 2, 3, 4]
+    - Esattamente 4 equipaggi diurni ('08:20'), uno per ciascun mezzo [1, 2, 3, 4]
+    - Esattamente 3 equipaggi liberi ('L')
+    - Esattamente 1 equipaggio in disponibilità 'L1', 1 in 'L2', 1 in 'L3'
+    - Esattamente 1 equipaggio in riserva 'R1', 1 in 'R2', 1 in 'R3'
+    """
+    errors = []
+    counts = {
+        "20": 0,
+        "08": 0,
+        "08:20": 0,
+        "L": 0,
+        "L1": 0,
+        "L2": 0,
+        "L3": 0,
+        "R1": 0,
+        "R2": 0,
+        "R3": 0,
+        "altro": 0
+    }
+    
+    mezzi_assegnati = {
+        "20": [],
+        "08": [],
+        "08:20": []
+    }
+    
+    for crew_num in range(1, 22):
+        shift = get_shift_for_crew(crew_num, target_date)
+        st_val = shift.get("stato")
+        m_val = shift.get("mezzo")
+        
+        if st_val in counts:
+            counts[st_val] += 1
+        else:
+            counts["altro"] += 1
+            errors.append(f"Eq. {crew_num}: stato imprevisto '{st_val}'")
+            
+        if st_val in mezzi_assegnati:
+            if m_val is None:
+                errors.append(f"Eq. {crew_num} in turno '{st_val}' senza mezzo assegnato")
+            else:
+                mezzi_assegnati[st_val].append((crew_num, m_val))
+                
+    # Verifica conteggi numerici
+    expected_counts = {
+        "20": 4,
+        "08": 4,
+        "08:20": 4,
+        "L": 3,
+        "L1": 1,
+        "L2": 1,
+        "L3": 1,
+        "R1": 1,
+        "R2": 1,
+        "R3": 1
+    }
+    
+    for key, exp_val in expected_counts.items():
+        if counts[key] != exp_val:
+            errors.append(f"Stato '{key}': trovati {counts[key]} equipaggi invece di {exp_val}")
+            
+    # Verifica non sovrapposizione e completezza mezzi (1, 2, 3, 4)
+    for shift_type in ["20", "08", "08:20"]:
+        assigned_m = [item[1] for item in mezzi_assegnati[shift_type]]
+        sorted_m = sorted(assigned_m)
+        if sorted_m != [1, 2, 3, 4]:
+            errors.append(f"Copertura mezzi anomala per turno '{shift_type}': mezzi rilevati {sorted_m} (attesi [1, 2, 3, 4])")
+            
+    return {
+        "date": target_date,
+        "is_valid": len(errors) == 0,
+        "errors": errors,
+        "counts": counts
+    }
+
+def validate_schedule_period(dates_list: list) -> dict:
+    """
+    Esegue la validazione su un elenco di date (es. mese visualizzato o intero ciclo).
+    """
+    total_days = len(dates_list)
+    invalid_days = []
+    
+    for d in dates_list:
+        res = validate_day_integrity(d)
+        if not res["is_valid"]:
+            invalid_days.append(res)
+            
+    return {
+        "total_days": total_days,
+        "is_valid": len(invalid_days) == 0,
+        "invalid_count": len(invalid_days),
+        "invalid_days": invalid_days
+    }
