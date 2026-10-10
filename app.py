@@ -312,6 +312,7 @@ def generate_ics_calendar(crew_num: int, dates_list: list) -> str:
     """
     Genera una stringa formattata standard iCalendar (.ics) per l'equipaggio selezionato.
     Include orari precisi per i turni lavorativi ed eventi di intera giornata per riserve/disponibilità.
+    Esclude i liberi (L) e gli smontanti (08) poiché già coperti dal montante notte (20:00-08:00).
     """
     now_stamp = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
     lines = [
@@ -328,8 +329,8 @@ def generate_ics_calendar(crew_num: int, dates_list: list) -> str:
         mezzo = shift.get("mezzo")
         stato = shift.get("stato")
         
-        # Non creiamo eventi per i giorni di libero totale (L)
-        if stato == "L":
+        # Ignoriamo i giorni di libero totale (L) e gli smontanti notte (08) già compresi nella notte 20-08
+        if stato in ["L", "08"]:
             continue
 
         dislocazione = f"Rimorchiatore {mezzo} ({'SIOT' if mezzo in [1, 2] else 'PFV/Base'})" if mezzo else ""
@@ -362,24 +363,6 @@ def generate_ics_calendar(crew_num: int, dates_list: list) -> str:
             desc = f"Turno Diurno su {dislocazione}"
             dtstart = f"{date_str}T080000"
             dtend = f"{date_str}T200000"
-            
-            lines.extend([
-                "BEGIN:VEVENT",
-                f"UID:{uid}",
-                f"DTSTAMP:{now_stamp}",
-                f"DTSTART:{dtstart}",
-                f"DTEND:{dtend}",
-                f"SUMMARY:{summary}",
-                f"DESCRIPTION:{desc}",
-                f"LOCATION:{dislocazione}",
-                "END:VEVENT"
-            ])
-        elif stato == "08":
-            # Smontante notte fino alle 08:00 (promemoria orario smonto)
-            summary = f"⚓ Eq.{crew_num} - Smonto Notte (fino alle 08:00)"
-            desc = f"Fine servizio notturno su {dislocazione}"
-            dtstart = f"{date_str}T070000"
-            dtend = f"{date_str}T080000"
             
             lines.extend([
                 "BEGIN:VEVENT",
