@@ -2,7 +2,7 @@ import io
 import os
 import calendar
 import datetime
-from pypdf import PdfReader, PdfWriter, Transformation
+from pypdf import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from engine import get_shift_for_crew, get_holiday_type
 
@@ -206,19 +206,17 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
     orig_h = float(base_page.mediabox.height)
 
     # Se la pagina originale è in Portrait (scansione verticale standard),
-    # viene ruotata di 90 gradi e riallineata alle dimensioni A4 Landscape
+    # viene ruotata di 90 gradi in senso orario per adagiarsi orizzontalmente
     if orig_h > orig_w:
         base_page.rotate(90)
 
-    # Forzatura esplicita mediabox Landscape e azzeramento rotazione residua
-    base_page.mediabox.lower_left = (0, 0)
-    base_page.mediabox.upper_right = (PAGE_W, PAGE_H)
-    base_page.set_attribute("/Rotate", 0)
-
+    # Sovrapposizione del testo calcolato in Landscape
     base_page.merge_page(overlay_page)
 
     writer = PdfWriter()
-    writer.add_page(base_page)
+    # Creazione pagina A4 Landscape esplicita per azzerare qualsiasi conflitto di orientamento
+    final_page = writer.add_blank_page(width=PAGE_W, height=PAGE_H)
+    final_page.merge_page(base_page)
 
     output_stream = io.BytesIO()
     writer.write(output_stream)
