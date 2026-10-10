@@ -35,46 +35,47 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
     if not template_path:
         raise FileNotFoundError("File template 'straordinario ed extra tripmare.pdf' non trovato.")
 
-    # Dimensioni A4 Landscape standard (punti tipografici)
     PAGE_W = 841.89
     PAGE_H = 595.28
 
-    # Buffer grafico ReportLab nativo in Landscape
     packet = io.BytesIO()
     c = canvas.Canvas(packet, pagesize=(PAGE_W, PAGE_H))
-    c.setFillColorRGB(0, 0, 0)
-    c.setStrokeColorRGB(0, 0, 0)
 
     # --- CALIBRAZIONE GEOMETRICA GRIGLIA LANDSCAPE ---
     # Centratura orizzontale delle 31 colonne
-    X_COL_1_START = 153.5
-    X_COL_31_END = 771.5
-    COL_W = (X_COL_31_END - X_COL_1_START) / 31.0
-    X_TOT_COL = 791.0
+    X_COL_1_START = 141.0
+    COL_W = 20.10
+    X_TOT_COL = 787.5
 
     def get_cx(d_idx: int) -> float:
-        # Ritorna la coordinata X centrale per il giorno d_idx (1..31)
         return X_COL_1_START + (d_idx - 1) * COL_W + (COL_W / 2.0)
 
-    # Coordinate verticali Y calibrate dal basso verso l'alto (0..595)
-    Y_MESE_TEXT = 548.0
-    Y_ANNO_TEXT = 527.5
-    Y_ROW_GIORNO_SETT = 512.0
-    Y_ROW_EQUIPAGGIO = 496.0
-    Y_ROW_DALLE = 481.0
-    Y_ROW_ALLE = 466.0
-    Y_ROW_NOTTURNA = 377.0     # Riga 5 Maggiorazione Notturna
-    Y_ROW_NAVIGAZIONE = 360.5   # Riga 6 Indennità Navigazione
-    Y_ROW_FESTIVO = 330.0       # Riga 8 Festivo
-    Y_ROW_BUONI_PASTO = 227.0   # Riga 15 Buoni pasto
+    # Coordinate verticali Y (dal basso verso l'alto, 0..595)
+    Y_MESE_TEXT = 544.0
+    Y_ANNO_TEXT = 524.0
+    Y_ROW_GIORNO_SETT = 507.0
+    Y_ROW_EQUIPAGGIO = 491.0
+    Y_ROW_DALLE = 475.0
+    Y_ROW_ALLE = 460.0
+    Y_ROW_NOTTURNA = 371.0     # Riga 5 Maggiorazione Notturna
+    Y_ROW_NAVIGAZIONE = 355.0   # Riga 6 Indennità Navigazione
+    Y_ROW_FESTIVO = 324.0       # Riga 8 Festivo
+    Y_ROW_BUONI_PASTO = 217.5   # Riga 15 Buoni pasto
 
-    # 1. Intestazione Mese e Anno
-    c.setFont("Helvetica-Bold", 10.5)
+    # 1. Mascheratura del vecchio "2022" prestampato e scrittura Anno / Mese
+    c.setFillColorRGB(1, 1, 1)  # Bianco
+    # Rettangolo bianco di copertura sopra la cella dell'anno
+    c.rect(48.0, 520.0, 52.0, 14.0, fill=1, stroke=0)
+
+    c.setFillColorRGB(0, 0, 0)  # Nero
+    c.setStrokeColorRGB(0, 0, 0)
+
+    c.setFont("Helvetica-Bold", 10.0)
     nome_mese = MESI_MAIUSCOLO[month]
-    c.drawString(68.0, Y_MESE_TEXT, nome_mese)
+    c.drawString(45.0, Y_MESE_TEXT, nome_mese)
 
-    c.setFont("Helvetica-Bold", 9.0)
-    c.drawString(87.0, Y_ANNO_TEXT, str(year))
+    c.setFont("Helvetica-Bold", 9.5)
+    c.drawCentredString(74.0, Y_ANNO_TEXT, str(year))
 
     # 2. Elaborazione giorni del mese
     _, num_days = calendar.monthrange(year, month)
@@ -88,10 +89,10 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
         cx = get_cx(day)
 
         if day > num_days:
-            # Giorno inesistente nel mese: barra diagonale di cancellazione
+            # Giorno inesistente: linea diagonale di sbarramento
             c.setLineWidth(0.7)
-            col_left = X_COL_1_START + (day - 1) * COL_W + 0.5
-            col_right = col_left + COL_W - 1.0
+            col_left = X_COL_1_START + (day - 1) * COL_W + 1.0
+            col_right = col_left + COL_W - 2.0
             c.line(col_left, Y_ROW_GIORNO_SETT + 8.0, col_right, Y_ROW_BUONI_PASTO - 6.0)
             continue
 
@@ -105,7 +106,7 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
         c.setFont("Helvetica-Bold", 7.5)
         c.drawCentredString(cx, Y_ROW_GIORNO_SETT, giorno_lett)
 
-        # Se festivo, disegna una sottile ellisse attorno alla lettera
+        # Ellisse sottile sui festivi
         if is_hol:
             c.setLineWidth(0.6)
             c.ellipse(cx - 5.5, Y_ROW_GIORNO_SETT - 2.5, cx + 5.5, Y_ROW_GIORNO_SETT + 8.5)
@@ -116,7 +117,7 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
             c.setFont("Helvetica-Bold", 5.5)
             c.drawString(cx - 6.5, Y_ROW_EQUIPAGGIO + 2.5, "R")
         elif stato in ["20", "08", "08:20"]:
-            # Servizio effettivo: numero equipaggio
+            # Servizio effettivo: numero equipaggio centrato
             c.setFont("Helvetica-Bold", 8.0)
             c.drawCentredString(cx, Y_ROW_EQUIPAGGIO, str(crew_num))
 
@@ -195,7 +196,7 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
     c.save()
     packet.seek(0)
 
-    # 4. Fusione vettoriale e orientamento Landscape nativo forzato
+    # 4. Fusione vettoriale e orientamento Landscape nativo
     overlay_reader = PdfReader(packet)
     overlay_page = overlay_reader.pages[0]
 
@@ -205,16 +206,13 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
     orig_w = float(base_page.mediabox.width)
     orig_h = float(base_page.mediabox.height)
 
-    # Se la pagina originale è in Portrait (scansione verticale standard),
-    # viene ruotata di 90 gradi in senso orario per adagiarsi orizzontalmente
+    # Se il template originale è memorizzato in Portrait, ruota di 90° in Landscape
     if orig_h > orig_w:
         base_page.rotate(90)
 
-    # Sovrapposizione del testo calcolato in Landscape
     base_page.merge_page(overlay_page)
 
     writer = PdfWriter()
-    # Creazione pagina A4 Landscape esplicita per azzerare qualsiasi conflitto di orientamento
     final_page = writer.add_blank_page(width=PAGE_W, height=PAGE_H)
     final_page.merge_page(base_page)
 
