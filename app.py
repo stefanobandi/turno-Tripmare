@@ -324,7 +324,6 @@ if validation_report["is_valid"]:
 if view_type == "Equipaggio Specifico":
     st.write("")
     
-    # Riquadro con 2 pulsanti: Calendario .ics e Foglio Presenze PDF
     col_export_1, col_export_2 = st.columns(2)
 
     with col_export_1:
@@ -343,7 +342,7 @@ if view_type == "Equipaggio Specifico":
         st.caption("Consiglio: importalo come calendario secondario per accenderlo/spegnerlo o cancellarlo con un clic.")
 
     with col_export_2:
-        st.markdown("##### 📄 Foglio Presenze Aziendale")
+        st.markdown("##### 📄 Foglio Presenze Aziendale (Work in progress)")
         template_file = find_template_path()
         if template_file:
             try:
