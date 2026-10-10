@@ -12,6 +12,7 @@ from engine import (
     ANCHOR_DATE
 )
 from faq import render_documentation_section, render_faq_section
+from timesheet import generate_monthly_timesheet_pdf, find_template_path
 
 st.set_page_config(page_title="Proiezione turno Tripmare", layout="wide")
 
@@ -319,26 +320,48 @@ if validation_report["is_valid"]:
         unsafe_allow_html=True
     )
 
-# Esportazione Calendario .ics
+# Sezione Esportazioni per Equipaggio Specifico
 if view_type == "Equipaggio Specifico":
     st.write("")
-    ics_col1, ics_col2 = st.columns([1.5, 2.5])
-    with ics_col1:
+    
+    # Riquadro con 2 pulsanti: Calendario .ics e Foglio Presenze PDF
+    col_export_1, col_export_2 = st.columns(2)
+
+    with col_export_1:
+        st.markdown("##### 📅 Sincronizzazione Smartphone")
         ics_data = generate_ics_calendar(selected_crew, dates_to_show)
         file_suffix = f"{dates_to_show[0].strftime('%Y_%m')}" if time_horizon == "Mese Completo" else f"{dates_to_show[0].strftime('%Y_%m_%d')}"
         ics_filename = f"turno_tripmare_eq{selected_crew}_{file_suffix}.ics"
+        
         st.download_button(
-            label=f"📅 Scarica Calendario (.ics) - Eq. {selected_crew}",
+            label=f"Scarica Calendario (.ics) - Eq. {selected_crew}",
             data=ics_data,
             file_name=ics_filename,
             mime="text/calendar",
             use_container_width=True
         )
-    with ics_col2:
-        st.caption(
-            "💡 **Consiglio:** importa il file creando un **calendario secondario dedicato** (es. *'Turno Tripmare'*). "
-            "In questo modo potrai accenderlo/spegnerlo con una spunta o cancellarlo con un solo clic senza intaccare i tuoi impegni personali."
-        )
+        st.caption("Consiglio: importalo come calendario secondario per accenderlo/spegnerlo o cancellarlo con un clic.")
+
+    with col_export_2:
+        st.markdown("##### 📄 Foglio Presenze Aziendale")
+        template_file = find_template_path()
+        if template_file:
+            try:
+                timesheet_pdf_data = generate_monthly_timesheet_pdf(curr.year, curr.month, selected_crew)
+                pdf_filename = f"presenze_tripmare_eq{selected_crew}_{curr.year}_{curr.month:02d}.pdf"
+                st.download_button(
+                    label=f"Scarica Modulo PDF - Eq. {selected_crew} ({MESI_ITALIANO[curr.month]} {curr.year})",
+                    data=timesheet_pdf_data,
+                    file_name=pdf_filename,
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+                st.caption("Modulo precompilato pronto per la stampa in B/N con indennità, maggiorazioni, festivi e buoni pasto.")
+            except Exception as e:
+                st.error(f"Errore durante la compilazione del PDF: {e}")
+        else:
+            st.button("Scarica Modulo PDF (Template non trovato)", disabled=True, use_container_width=True, help="Carica il file 'straordinario ed extra tripmare.pdf' nel repository.")
+            st.caption("Carica il file 'straordinario ed extra tripmare.pdf' nel repository per attivare la stampa.")
 
 # Box Legenda
 st.markdown("""
