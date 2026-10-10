@@ -28,53 +28,53 @@ def find_template_path() -> str:
 
 def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> bytes:
     """
-    Sovrascrive il PDF template del modulo presenze mensile con i dati dell'equipaggio.
-    Ritorna il flusso di byte del PDF finale generato.
+    Genera il foglio presenze mensile in orientamento Landscape (A4 orizzontale: 842 x 595 pt),
+    sovrapponendo i dati del turno esattamente nelle celle della tabella aziendale.
     """
     template_path = find_template_path()
     if not template_path:
         raise FileNotFoundError("File template 'straordinario ed extra tripmare.pdf' non trovato.")
 
-    reader = PdfReader(template_path)
-    base_page = reader.pages[0]
-    page_w = float(base_page.mediabox.width)
-    page_h = float(base_page.mediabox.height)
+    # Dimensioni A4 Landscape standard
+    PAGE_WIDTH = 841.89
+    PAGE_HEIGHT = 595.28
 
+    # Buffer grafico ReportLab nativo in Landscape
     packet = io.BytesIO()
-    c = canvas.Canvas(packet, pagesize=(page_w, page_h))
+    c = canvas.Canvas(packet, pagesize=(PAGE_WIDTH, PAGE_HEIGHT))
     c.setFillColorRGB(0, 0, 0)
     c.setStrokeColorRGB(0, 0, 0)
 
-    # --- GEOMETRIA DELLA GRIGLIA ---
-    # Il modulo ha 31 colonne per i giorni del mese + 1 colonna a destra per i totali
-    X_START_DAY1 = 120.0
-    X_TOTAL_END = 574.0
-    COL_WIDTH = (X_TOTAL_END - X_START_DAY1) / 31.0
-    X_TOT_COL = X_TOTAL_END + 11.0
+    # --- CALIBRAZIONE GEOMETRICA GRIGLIA LANDSCAPE ---
+    # Colonne giorni: dal giorno 1 al 31 distribuite lungo la larghezza orizzontale
+    X_COL_1_START = 173.0
+    X_COL_31_END = 778.0
+    COL_W = (X_COL_31_END - X_COL_1_START) / 31.0
+    X_TOTAL_COL = 798.0
 
-    def col_center_x(day_idx: int) -> float:
-        # day_idx da 1 a 31
-        return X_START_DAY1 + (day_idx - 1) * COL_WIDTH + (COL_WIDTH / 2.0)
+    def get_cx(d_idx: int) -> float:
+        # Ritorna la coordinata X centrale della colonna del giorno (1..31)
+        return X_COL_1_START + (d_idx - 1) * COL_W + (COL_W / 2.0)
 
-    # Coordinate verticali Y (dal basso verso l'alto nel sistema PDF)
-    Y_MESE_TEXT = 780.0
-    Y_ANNO_TEXT = 770.0
-    Y_ROW_GIORNO_SETT = 753.0
-    Y_ROW_EQUIPAGGIO = 741.0
-    Y_ROW_DALLE = 728.0
-    Y_ROW_ALLE = 716.0
-    Y_ROW_NOTTURNA = 642.0     # Riga 5 Maggiorazione Notturna
-    Y_ROW_NAVIGAZIONE = 629.0   # Riga 6 Indennità Navigazione
-    Y_ROW_FESTIVO = 604.0       # Riga 8 Festivo
-    Y_ROW_BUONI_PASTO = 515.0   # Riga 15 Buoni pasto
+    # Coordinate verticali Y calibrate dal basso verso l'alto (0..595)
+    Y_HEADER_MESE = 552.0
+    Y_HEADER_ANNO = 537.0
+    Y_ROW_GIORNO_SETT = 524.0
+    Y_ROW_EQUIPAGGIO = 508.0
+    Y_ROW_DALLE = 492.0
+    Y_ROW_ALLE = 478.0
+    Y_ROW_NOTTURNA = 390.0     # Riga 5 Maggiorazione Notturna
+    Y_ROW_NAVIGAZIONE = 375.0   # Riga 6 Indennità Navigazione
+    Y_ROW_FESTIVO = 345.0       # Riga 8 Festivo
+    Y_ROW_BUONI_PASTO = 239.0   # Riga 15 Buoni pasto
 
-    # 1. Intestazione: Mese e Anno
-    c.setFont("Helvetica-Bold", 10)
+    # 1. Intestazione Mese e Anno
+    c.setFont("Helvetica-Bold", 11)
     nome_mese = MESI_MAIUSCOLO[month]
-    c.drawString(45.0, Y_MESE_TEXT, nome_mese)
-    c.drawString(68.0, Y_ANNO_TEXT, str(year))
+    c.drawString(65.0, Y_HEADER_MESE, nome_mese)
+    c.drawString(102.0, Y_HEADER_ANNO, str(year))
 
-    # 2. Calcolo dati per ciascun giorno del mese
+    # 2. Elaborazione dei giorni del mese
     _, num_days = calendar.monthrange(year, month)
 
     tot_notturna = 0
@@ -83,43 +83,40 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
     tot_buoni_pasto = 0
 
     for day in range(1, 32):
-        cx = col_center_x(day)
+        cx = get_cx(day)
 
         if day > num_days:
-            # Giorno inesistente nel mese: traccia una riga diagonale nera di cancellazione
+            # Giorno non presente nel mese: traccia una diagonale netta sulla colonna
             c.setLineWidth(0.8)
-            col_x1 = X_START_DAY1 + (day - 1) * COL_WIDTH
-            col_x2 = col_x1 + COL_WIDTH
-            y_top_grid = Y_ROW_GIORNO_SETT + 8.0
-            y_bottom_grid = Y_ROW_BUONI_PASTO - 15.0
-            c.line(col_x1, y_top_grid, col_x2, y_bottom_grid)
+            col_left = X_COL_1_START + (day - 1) * COL_W
+            col_right = col_left + COL_W
+            c.line(col_left, Y_ROW_GIORNO_SETT + 8.0, col_right, Y_ROW_BUONI_PASTO - 12.0)
             continue
 
         target_date = datetime.date(year, month, day)
         shift = get_shift_for_crew(crew_num, target_date)
-        is_hol, is_semi, _ = get_holiday_type(target_date)
+        is_hol, _, _ = get_holiday_type(target_date)
         stato = shift.get("stato", "")
 
         # A. Lettera giorno della settimana
         giorno_lett = GIORNI_SETT_LETTERE[target_date.weekday()]
-        c.setFont("Helvetica", 7.5)
+        c.setFont("Helvetica-Bold", 8.0)
         c.drawCentredString(cx, Y_ROW_GIORNO_SETT, giorno_lett)
 
-        # Se festivo (Domenica o festività contrattuale CCNL), disegna ellisse sottile nera
+        # Se festivo, disegna una sottile ellisse geometrica attorno alla lettera
         if is_hol:
             c.setLineWidth(0.6)
-            c.ellipse(cx - 5.5, Y_ROW_GIORNO_SETT - 3.0, cx + 5.5, Y_ROW_GIORNO_SETT + 8.5)
+            c.ellipse(cx - 6.0, Y_ROW_GIORNO_SETT - 3.0, cx + 6.0, Y_ROW_GIORNO_SETT + 9.0)
 
         # B. Equipaggio
         if stato.startswith("R"):
-            # Giorno di riserva: 'R' minuscola/piccola in alto a sinistra della cella
-            c.setFont("Helvetica-Bold", 5.5)
-            c.drawString(cx - 5.5, Y_ROW_EQUIPAGGIO + 2.0, "R")
+            # Riserva: 'R' piccola in alto a sinistra della cella
+            c.setFont("Helvetica-Bold", 6.0)
+            c.drawString(cx - 7.5, Y_ROW_EQUIPAGGIO + 2.5, "R")
         elif stato in ["20", "08", "08:20"]:
-            # Giorno lavorativo effettivo: numero equipaggio
-            c.setFont("Helvetica-Bold", 7.5)
+            # Servizio effettivo: numero equipaggio centrato
+            c.setFont("Helvetica-Bold", 8.5)
             c.drawCentredString(cx, Y_ROW_EQUIPAGGIO, str(crew_num))
-        # Per L, L1, L2, L3 la cella equipaggio rimane in bianco
 
         # C. Orari Dalle / Alle e Competenze
         dalle_str = ""
@@ -130,7 +127,7 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
         val_buono = None
 
         if stato == "20":
-            # Montante Notte
+            # Montante Notte: 20:00 - 24:00
             dalle_str = "20"
             alle_str = "24"
             val_notturna = 4
@@ -139,7 +136,7 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
             if is_hol:
                 val_festivo = 1
         elif stato == "08":
-            # Smontante Notte
+            # Smontante Notte: 00:00 - 08:00
             dalle_str = "00"
             alle_str = "08"
             val_notturna = 6
@@ -148,7 +145,7 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
             if is_hol:
                 val_festivo = 1
         elif stato == "08:20":
-            # Diurno
+            # Diurno: 08:00 - 20:00
             dalle_str = "08"
             alle_str = "20"
             val_navigazione = 12
@@ -156,49 +153,59 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
             if is_hol:
                 val_festivo = 1
 
-        c.setFont("Helvetica", 7.0)
+        c.setFont("Helvetica", 7.5)
         if dalle_str:
             c.drawCentredString(cx, Y_ROW_DALLE, dalle_str)
         if alle_str:
             c.drawCentredString(cx, Y_ROW_ALLE, alle_str)
 
-        # Riga 5 - Maggiorazione Notturna
+        # 5. Maggiorazione Notturna
         if val_notturna is not None:
             c.drawCentredString(cx, Y_ROW_NOTTURNA, str(val_notturna))
             tot_notturna += val_notturna
 
-        # Riga 6 - Indennità Navigazione
+        # 6. Indennità Navigazione
         if val_navigazione is not None:
             c.drawCentredString(cx, Y_ROW_NAVIGAZIONE, str(val_navigazione))
             tot_navigazione += val_navigazione
 
-        # Riga 8 - Festivo
+        # 8. Festivo
         if val_festivo is not None:
             c.drawCentredString(cx, Y_ROW_FESTIVO, str(val_festivo))
             tot_festivo += val_festivo
 
-        # Riga 15 - Buoni pasto
+        # 15. Buoni pasto
         if val_buono is not None:
             c.drawCentredString(cx, Y_ROW_BUONI_PASTO, str(val_buono))
             tot_buoni_pasto += val_buono
 
-    # 3. Totali colonna di destra
-    c.setFont("Helvetica-Bold", 7.5)
+    # 3. Totali nella colonna di destra
+    c.setFont("Helvetica-Bold", 8.0)
     if tot_notturna > 0:
-        c.drawCentredString(X_TOT_COL, Y_ROW_NOTTURNA, str(tot_notturna))
+        c.drawCentredString(X_TOTAL_COL, Y_ROW_NOTTURNA, str(tot_notturna))
     if tot_navigazione > 0:
-        c.drawCentredString(X_TOT_COL, Y_ROW_NAVIGAZIONE, str(tot_navigazione))
+        c.drawCentredString(X_TOTAL_COL, Y_ROW_NAVIGAZIONE, str(tot_navigazione))
     if tot_festivo > 0:
-        c.drawCentredString(X_TOT_COL, Y_ROW_FESTIVO, str(tot_festivo))
+        c.drawCentredString(X_TOTAL_COL, Y_ROW_FESTIVO, str(tot_festivo))
     if tot_buoni_pasto > 0:
-        c.drawCentredString(X_TOT_COL, Y_ROW_BUONI_PASTO, str(tot_buoni_pasto))
+        c.drawCentredString(X_TOTAL_COL, Y_ROW_BUONI_PASTO, str(tot_buoni_pasto))
 
     c.save()
     packet.seek(0)
 
-    # 4. Fusione del livello grafico sopra il template PDF originale
+    # 4. Fusione del livello grafico con il template di sfondo
     overlay_reader = PdfReader(packet)
     overlay_page = overlay_reader.pages[0]
+
+    template_reader = PdfReader(template_path)
+    base_page = template_reader.pages[0]
+
+    # Se la pagina originale del template è memorizzata in Portrait (altezza > larghezza),
+    # viene ruotata di 90 gradi per posizionarsi orizzontalmente in Landscape (A4)
+    orig_w = float(base_page.mediabox.width)
+    orig_h = float(base_page.mediabox.height)
+    if orig_h > orig_w:
+        base_page.rotate(90)
 
     base_page.merge_page(overlay_page)
 
