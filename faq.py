@@ -83,7 +83,7 @@ def render_faq_section():
           * **Dalle 00:00 alle 08:00**: straordinario come da scivolamento (6 ore notturne + 2 ore diurne feriali/festive) + **2 giorni compensativi** + applicazione straordinario **3x1** qualora venga superata la 14ª ora complessiva di prestazione.
         """)
 
-    with st.expander("**Come segno se prolungo il servizio oltre le 08:00 smontando dalla notte (Presa Cavo)?**"):
+    with st.expander("**Come segno se prolungo il servizio oltre le 08:00 smontando dalla notte?**"):
         st.markdown("""
         La rendicontazione delle ore di prolungamento oltre il normale orario di smonto delle 08:00 dipende dall'orario esatto in cui è stato **preso/voltato il cavo** (*rif. CIA, pag. 30*):
 
