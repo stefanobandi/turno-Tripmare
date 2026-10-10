@@ -181,6 +181,18 @@ st.markdown("""
         font-style: italic;
     }
 
+    .integrity-ok-badge {
+        font-size: 12px;
+        color: #15803d;
+        background-color: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-radius: 6px;
+        padding: 5px 10px;
+        display: inline-block;
+        margin-top: 8px;
+        font-weight: 600;
+    }
+
     /* Box Legenda */
     .legend-box {
         background-color: #f8fafc;
@@ -295,6 +307,124 @@ def build_cell_tooltip(crew_num: int, target_date: datetime.date, mezzo: int, st
             lines.append(f"Stato: {stato}")
 
     return "&#10;".join(lines)
+
+def generate_ics_calendar(crew_num: int, dates_list: list) -> str:
+    """
+    Genera una stringa formattata standard iCalendar (.ics) per l'equipaggio selezionato.
+    Include orari precisi per i turni lavorativi ed eventi di intera giornata per riserve/disponibilità.
+    """
+    now_stamp = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Tripmare S.p.A.//Turno Rimorchiatori//IT",
+        f"X-WR-CALNAME:Turno Tripmare - Eq. {crew_num}",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH"
+    ]
+
+    for d in dates_list:
+        shift = get_shift_for_crew(crew_num, d)
+        mezzo = shift.get("mezzo")
+        stato = shift.get("stato")
+        
+        # Non creiamo eventi per i giorni di libero totale (L)
+        if stato == "L":
+            continue
+
+        dislocazione = f"Rimorchiatore {mezzo} ({'SIOT' if mezzo in [1, 2] else 'PFV/Base'})" if mezzo else ""
+        date_str = d.strftime("%Y%m%d")
+        next_d_str = (d + datetime.timedelta(days=1)).strftime("%Y%m%d")
+        
+        uid = f"tripmare-eq{crew_num}-{date_str}-{stato}@trieste.harbour"
+
+        if stato == "20":
+            # Montante Notte: dalle 20:00 alle 08:00 del giorno successivo
+            summary = f"⚓ Eq.{crew_num} - Notte (20:00 - 08:00)"
+            desc = f"Turno Notturno su {dislocazione}"
+            dtstart = f"{date_str}T200000"
+            dtend = f"{next_d_str}T080000"
+            
+            lines.extend([
+                "BEGIN:VEVENT",
+                f"UID:{uid}",
+                f"DTSTAMP:{now_stamp}",
+                f"DTSTART:{dtstart}",
+                f"DTEND:{dtend}",
+                f"SUMMARY:{summary}",
+                f"DESCRIPTION:{desc}",
+                f"LOCATION:{dislocazione}",
+                "END:VEVENT"
+            ])
+        elif stato == "08:20":
+            # Diurno: dalle 08:00 alle 20:00
+            summary = f"⚓ Eq.{crew_num} - Diurno (08:00 - 20:00)"
+            desc = f"Turno Diurno su {dislocazione}"
+            dtstart = f"{date_str}T080000"
+            dtend = f"{date_str}T200000"
+            
+            lines.extend([
+                "BEGIN:VEVENT",
+                f"UID:{uid}",
+                f"DTSTAMP:{now_stamp}",
+                f"DTSTART:{dtstart}",
+                f"DTEND:{dtend}",
+                f"SUMMARY:{summary}",
+                f"DESCRIPTION:{desc}",
+                f"LOCATION:{dislocazione}",
+                "END:VEVENT"
+            ])
+        elif stato == "08":
+            # Smontante notte fino alle 08:00 (promemoria orario smonto)
+            summary = f"⚓ Eq.{crew_num} - Smonto Notte (fino alle 08:00)"
+            desc = f"Fine servizio notturno su {dislocazione}"
+            dtstart = f"{date_str}T070000"
+            dtend = f"{date_str}T080000"
+            
+            lines.extend([
+                "BEGIN:VEVENT",
+                f"UID:{uid}",
+                f"DTSTAMP:{now_stamp}",
+                f"DTSTART:{dtstart}",
+                f"DTEND:{dtend}",
+                f"SUMMARY:{summary}",
+                f"DESCRIPTION:{desc}",
+                f"LOCATION:{dislocazione}",
+                "END:VEVENT"
+            ])
+        elif stato in ["L1", "L2", "L3"]:
+            # Disponibilità: evento di giornata intera
+            summary = f"📞 Eq.{crew_num} - Disponibilità {stato}"
+            desc = f"Giornata di disponibilità attiva {stato}"
+            
+            lines.extend([
+                "BEGIN:VEVENT",
+                f"UID:{uid}",
+                f"DTSTAMP:{now_stamp}",
+                f"DTSTART;VALUE=DATE:{date_str}",
+                f"DTEND;VALUE=DATE:{next_d_str}",
+                f"SUMMARY:{summary}",
+                f"DESCRIPTION:{desc}",
+                "END:VEVENT"
+            ])
+        elif stato.startswith("R"):
+            # Riserva: evento di giornata intera
+            summary = f"🛡️ Eq.{crew_num} - Riserva {stato}"
+            desc = f"Settimana di Riserva ({stato})"
+            
+            lines.extend([
+                "BEGIN:VEVENT",
+                f"UID:{uid}",
+                f"DTSTAMP:{now_stamp}",
+                f"DTSTART;VALUE=DATE:{date_str}",
+                f"DTEND;VALUE=DATE:{next_d_str}",
+                f"SUMMARY:{summary}",
+                f"DESCRIPTION:{desc}",
+                "END:VEVENT"
+            ])
+
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(lines)
 
 # Inizializzazione session_state per navigazione
 if "current_date" not in st.session_state:
@@ -525,7 +655,8 @@ html_table.append('</tr></thead><tbody>')
 
 # Righe degli equipaggi
 for c_num in crews_to_render:
-    html_table.append(f'<tr><td class="crew-label-cell">Eq. {c_num}</td>')
+    label_text = f"Eq. {c_num} 🎱" if c_num == 8 else f"Eq. {c_num}"
+    html_table.append(f'<tr><td class="crew-label-cell">{label_text}</td>')
     for d in dates_to_show:
         shift = get_shift_for_crew(c_num, d)
         mezzo = shift["mezzo"]
@@ -559,6 +690,35 @@ for c_num in crews_to_render:
 html_table.append('</tbody></table></div>')
 
 st.markdown("".join(html_table), unsafe_allow_html=True)
+
+# Voce di integrità del turno verificata (visualizzata se la quadratura è corretta)
+if validation_report["is_valid"]:
+    st.markdown(
+        '<div class="integrity-ok-badge">✅ Integrità del turno verificata (21 equipaggi conformi)</div>',
+        unsafe_allow_html=True
+    )
+
+# Esportazione Calendario .ics per Equipaggio Specifico
+if view_type == "Equipaggio Specifico":
+    st.write("")
+    ics_col1, ics_col2 = st.columns([1.5, 2.5])
+    with ics_col1:
+        ics_data = generate_ics_calendar(selected_crew, dates_to_show)
+        file_suffix = f"{dates_to_show[0].strftime('%Y_%m')}" if time_horizon == "Mese Completo" else f"{dates_to_show[0].strftime('%Y_%m_%d')}"
+        ics_filename = f"turno_tripmare_eq{selected_crew}_{file_suffix}.ics"
+        
+        st.download_button(
+            label=f"📅 Scarica Calendario (.ics) - Eq. {selected_crew}",
+            data=ics_data,
+            file_name=ics_filename,
+            mime="text/calendar",
+            use_container_width=True
+        )
+    with ics_col2:
+        st.caption(
+            "💡 **Consiglio:** importa il file creando un **calendario secondario dedicato** (es. *'Turno Tripmare'*). "
+            "In questo modo potrai accenderlo/spegnerlo con una spunta o cancellarlo con un solo clic senza intaccare i tuoi impegni personali."
+        )
 
 # Legenda Dettagliata ed Esplicativa
 st.markdown("""
@@ -668,6 +828,23 @@ with st.expander("**Cosa segno se vengo messo in turno 20-08 dopo aver già pres
       * **Dalle 08:00 alle 20:00**: orario e compenso normale.
       * **Dalle 20:00 alle 24:00**: straordinario notturno (feriale o festivo).
       * **Dalle 00:00 alle 08:00**: straordinario come da scivolamento (6 ore notturne + 2 ore diurne feriali/festive) + **2 giorni compensativi** + applicazione straordinario **3x1** qualora venga superata la 14ª ora complessiva di prestazione.
+    """)
+
+with st.expander("**Come segno se prolungo il servizio oltre le 08:00 smontando dalla notte (Presa Cavo)?**"):
+    st.markdown("""
+    La rendicontazione delle ore di prolungamento oltre il normale orario di smonto delle 08:00 dipende dall'orario esatto in cui è stato **preso/voltato il cavo** (*rif. CIA, pag. 30*):
+
+    * **Caso A – Presa cavo DOPO le 08:00**:
+      *(Il servizio o la manovra inizia effettivamente dopo il termine del turno ordinario)*
+      * **1ª ora (dalle 08:00 alle 09:00)**: **1 ora di straordinario** + maturazione di **1 indennità di servizio prolungato**.
+      * **2ª ora (dalle 09:00 alle 10:00)**: **1 ora di straordinario** + maturazione di **1 indennità di servizio prolungato**.
+      * **Dalla 3ª ora in poi (dalle 10:00 in avanti)**: straordinario calcolato con formula **3x1** (pari a **3 ore di straordinario per ogni ora effettiva** lavorata).
+
+    * **Caso B – Presa cavo PRIMA delle 08:00**:
+      *(La manovra era già in corso prima delle 08:00 e si protrae oltre il termine del turno)*
+      * **1ª ora (dalle 08:00 alle 09:00)**: **1 ora** di straordinario.
+      * **2ª ora (dalle 09:00 alle 10:00)**: straordinario calcolato con formula **2x1** (pari a **2 ore** di straordinario).
+      * **Dalla 3ª ora in poi (dalle 10:00 in avanti)**: straordinario calcolato con formula **3x1** (pari a **3 ore** di straordinario per ogni ora effettiva).
     """)
 
 with st.expander("Come funziona la rotazione delle 21 settimane e delle riserve?"):
