@@ -155,7 +155,7 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
     H_ROW_ALLE = 12.0       # Alle
     H_ROW_ITEM = 12.0       # Righe voci 1..17
     H_ROW_CAPO_COG = 14.0   # Cognome del Capo Servizio
-    H_ROW_CAPO_FIRMA = 38.0 # Firma del Capo Servizio (riga alta per la firma autografa)
+    H_ROW_CAPO_FIRMA = 85.0 # Modifica 1: Firma del Capo Servizio più che raddoppiata (85 pt)
 
     items_def = [
         ("STR_1", "1", "Diu. Feriale"),
@@ -232,7 +232,7 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
     c.setLineWidth(1.4)
     c.line(MARGIN_LEFT, y_dalle, MARGIN_RIGHT, y_dalle)
 
-    # Linea sottile tra Dalle e Alle (salta la colonna Tot. che è unita)
+    # Linea sottile tra Dalle e Alle (salta la colonna Tot.)
     c.setLineWidth(0.5)
     c.line(X_SUB_ORARIO, y_alle, X_TOTAL_START, y_alle)
 
@@ -247,7 +247,6 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
             c.line(MARGIN_LEFT, y_b, X_SUB_NUM, y_b)
             c.line(X_SUB_QUAL, y_b, MARGIN_RIGHT, y_b)
         elif code == "VOCE_11":
-            # Per riga 11, la linea orizzontale salta la colonna 'Risc.' (mergiata tra 11 e 12)
             c.setLineWidth(0.5)
             c.line(MARGIN_LEFT, y_b, X_SUB_NUM, y_b)
             c.line(X_SUB_QUAL, y_b, MARGIN_RIGHT, y_b)
@@ -266,60 +265,52 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
     # =========================================================================
     # 3. ETICHETTE E ALLINEAMENTI DELLA COLONNA SINISTRA
     # =========================================================================
-    # Nome del mese a fianco dell'anno
     c.setFont("Helvetica-Bold", 10.0)
     c.drawCentredString(MARGIN_LEFT + (X_SUB_ORARIO - MARGIN_LEFT) / 2.0, y_num_days - 9.5, MESI_MAIUSCOLO[month])
 
-    # Casellina dell'Anno (sopra Dalle/Alle)
     c.setLineWidth(0.6)
     c.line(X_SUB_ORARIO, y_num_days, X_SUB_ORARIO, y_weekday)
     c.setFont("Helvetica", 8.5)
     c.drawCentredString(X_SUB_ORARIO + (X_DAYS_START - X_SUB_ORARIO) / 2.0, y_num_days - 9.5, str(year))
 
-    # "giorno della settimana" ed "Equipaggio"
     c.setFont("Helvetica", 8.0)
     c.drawCentredString(MARGIN_LEFT + LABEL_COL_W / 2.0, y_weekday - 9.5, "giorno della settimana")
     c.setFont("Helvetica", 8.5)
     c.drawCentredString(MARGIN_LEFT + LABEL_COL_W / 2.0, y_crew - 9.5, "Equipaggio")
 
-    # "Orario di servizio" centrato
     c.setLineWidth(0.6)
     c.line(X_SUB_ORARIO, y_dalle, X_SUB_ORARIO, y_items_start)
     c.setFont("Helvetica-Bold", 9.5)
     c.drawCentredString(MARGIN_LEFT + (X_SUB_ORARIO - MARGIN_LEFT) / 2.0, y_dalle - 15.0, "Orario di servizio")
 
-    # "Dalle" e "Alle"
     c.setFont("Helvetica", 7.5)
     c.drawCentredString(X_SUB_ORARIO + (X_DAYS_START - X_SUB_ORARIO) / 2.0, y_dalle - 8.5, "Dalle")
     c.drawCentredString(X_SUB_ORARIO + (X_DAYS_START - X_SUB_ORARIO) / 2.0, y_alle - 8.5, "Alle")
 
-    # "Tot." unito verticalmente su Dalle/Alle
     c.setFont("Helvetica-Bold", 8.0)
     c.drawCentredString(X_TOTAL_START + TOTAL_COL_W / 2.0, y_dalle - 14.0, "Tot.")
 
     # =========================================================================
     # 4. SUDDIVISIONE SOTTOCOLONNE DELLE VOCI (1..17)
     # =========================================================================
-    y_str3_bot = item_rows_coords[2][4]  # Fondo riga 3
-    y_voci_bot = item_rows_coords[16][4] # Fondo riga 17
+    y_str3_bot = item_rows_coords[2][4]
+    y_voci_bot = item_rows_coords[16][4]
 
     c.setLineWidth(0.5)
-    # Colonnina numeri 1..17
     c.line(X_SUB_NUM, y_items_start, X_SUB_NUM, y_voci_bot)
 
-    # 1) Merge 3 celle per "Str." (righe 1..3)
+    # Merge 3 celle per "Str." (righe 1..3)
     c.line(X_SUB_QUAL, y_items_start, X_SUB_QUAL, y_str3_bot)
     c.setFont("Helvetica-Bold", 8.0)
     c.drawCentredString(X_SUB_NUM + (X_SUB_QUAL - X_SUB_NUM) / 2.0, y_items_start - (3 * H_ROW_ITEM) / 2.0 - 2.5, "Str.")
 
-    # 2) Merge 2 celle per "Risc." (righe 11 e 12)
+    # Merge 2 celle per "Risc." (righe 11 e 12)
     y_r11_top = item_rows_coords[10][3]
     y_r12_bot = item_rows_coords[11][4]
     c.line(X_SUB_QUAL, y_r11_top, X_SUB_QUAL, y_r12_bot)
     c.setFont("Helvetica-Bold", 7.5)
     c.drawCentredString(X_SUB_NUM + (X_SUB_QUAL - X_SUB_NUM) / 2.0, y_r11_top - H_ROW_ITEM - 2.5, "Risc.")
 
-    # Scrittura numeri voci e descrizioni
     for code, num_str, desc_str, y_t, y_b in item_rows_coords:
         y_text = y_b + (y_t - y_b) / 2.0 - 2.5
         c.setFont("Helvetica-Bold", 7.5)
@@ -454,7 +445,7 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
 def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> bytes:
     """
     Genera il file Excel (.xlsx) nativo basato sulla struttura del foglio presenze Tripmare,
-    speculare al layout e alle formattazioni del modulo PDF ufficiale.
+    perfettamente allineato al PDF con bordi marcati e colonna totali corretta.
     """
     data = get_month_crew_data(year, month, crew_num)
     wb = openpyxl.Workbook()
@@ -471,20 +462,18 @@ def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> by
     align_center = Alignment(horizontal="center", vertical="center")
     align_left = Alignment(horizontal="left", vertical="center")
 
-    # Bordi
+    # Stili Bordi
     thin_s = Side(border_style="thin", color="000000")
     medium_s = Side(border_style="medium", color="000000")
-    b_thin = Border(top=thin_s, bottom=thin_s, left=thin_s, right=thin_s)
 
-    def apply_range_border(start_r, start_c, end_r, end_c, border_style=b_thin):
-        for r in range(start_r, end_r + 1):
-            for c in range(start_c, end_c + 1):
-                ws.cell(row=r, column=c).border = border_style
+    # Inizializzazione bordi di base sottili per tutte le celle dell'area attiva
+    for r in range(1, 26):
+        for c in range(1, 37):
+            ws.cell(row=r, column=c).border = Border(top=thin_s, bottom=thin_s, left=thin_s, right=thin_s)
 
     # =========================================================================
     # 1. TESTATA SUPERIORE (Righe 1 e 2)
     # =========================================================================
-    # Riga 1: Mese (A1:D1), Cognome (E1:P1), Nome (Q1:AA1), Codice (AB1:AJ1)
     ws.merge_cells("A1:D1")
     ws["A1"] = "Mese"
     ws["A1"].font = font_header_title
@@ -505,11 +494,6 @@ def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> by
     ws["AB1"].font = font_bold_sm
     ws["AB1"].alignment = align_left
 
-    apply_range_border(1, 1, 1, 4)
-    apply_range_border(1, 5, 1, 16)
-    apply_range_border(1, 17, 1, 27)
-    apply_range_border(1, 28, 1, 36)
-
     # Riga 2: Nome Mese a fianco dell'Anno
     ws.merge_cells("A2:C2")
     ws["A2"] = MESI_MAIUSCOLO[month]
@@ -520,59 +504,43 @@ def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> by
     ws["D2"].font = font_bold_sm
     ws["D2"].alignment = align_center
 
-    apply_range_border(2, 1, 2, 3)
-    ws["D2"].border = b_thin
-
     # Numeri 1..31 da Colonna E (5) a AI (35)
     for day in range(1, 32):
         cell = ws.cell(row=2, column=4 + day, value=day)
         cell.font = font_bold_sm
         cell.alignment = align_center
-        cell.border = b_thin
-
-    # Cella vuota sopra Totale in Colonna AJ (36)
-    ws.cell(row=2, column=36).border = b_thin
 
     # =========================================================================
     # 2. RIGHE DI SERVIZIO (3: giorno della settimana, 4: Equipaggio, 5..6: Orari)
     # =========================================================================
-    # Riga 3: giorno della settimana
     ws.merge_cells("A3:D3")
     ws["A3"] = "giorno della settimana"
     ws["A3"].font = font_regular_sm
     ws["A3"].alignment = align_center
-    apply_range_border(3, 1, 3, 4)
 
-    # Riga 4: Equipaggio
     ws.merge_cells("A4:D4")
     ws["A4"] = "Equipaggio"
     ws["A4"].font = font_bold_sm
     ws["A4"].alignment = align_center
-    apply_range_border(4, 1, 4, 4)
 
-    # Righe 5 e 6: Orario di servizio (A5:C6 unito) + Dalle (D5) / Alle (D6)
     ws.merge_cells("A5:C6")
     ws["A5"] = "Orario di servizio"
     ws["A5"].font = font_bold_sm
     ws["A5"].alignment = align_center
-    apply_range_border(5, 1, 6, 3)
 
     ws["D5"] = "Dalle"
     ws["D5"].font = font_regular_sm
     ws["D5"].alignment = align_center
-    ws["D5"].border = b_thin
 
     ws["D6"] = "Alle"
     ws["D6"].font = font_regular_sm
     ws["D6"].alignment = align_center
-    ws["D6"].border = b_thin
 
-    # Merge Tot. sulle righe 5 e 6 in colonna AJ (36)
+    # Modifica 3: Merge pulito di "Tot." sulle righe 5 e 6 in colonna AJ (36)
     ws.merge_cells("AJ5:AJ6")
     ws["AJ5"] = "Tot."
     ws["AJ5"].font = font_bold_sm
     ws["AJ5"].alignment = align_center
-    apply_range_border(5, 36, 6, 36)
 
     # =========================================================================
     # 3. VOCI 1..17 E CAPI SERVIZIO (Righe da 7 a 25)
@@ -603,47 +571,35 @@ def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> by
         if num_str:
             ws.cell(row=r_idx, column=1, value=num_str).alignment = align_center
             ws.cell(row=r_idx, column=1).font = font_bold_sm
-            ws.cell(row=r_idx, column=1).border = b_thin
 
-        # Merge qualificatori o descrizioni
         if r_idx in [7, 8, 9]:
-            # Righe 1, 2, 3: Colonna B è unita per "Str.", Col C..D per descrizione
             ws.merge_cells(start_row=r_idx, start_column=3, end_row=r_idx, end_column=4)
             ws.cell(row=r_idx, column=3, value=desc_str).alignment = align_left
             ws.cell(row=r_idx, column=3).font = font_regular_sm
-            apply_range_border(r_idx, 3, r_idx, 4)
         elif r_idx in [17, 18]:
-            # Righe 11, 12: Colonna B è unita per "Risc.", Col C..D per descrizione
             ws.merge_cells(start_row=r_idx, start_column=3, end_row=r_idx, end_column=4)
             ws.cell(row=r_idx, column=3, value=desc_str).alignment = align_left
             ws.cell(row=r_idx, column=3).font = font_regular_sm
-            apply_range_border(r_idx, 3, r_idx, 4)
         elif r_idx in [24, 25]:
-            # Capi Servizio: uniti su A..D
             ws.merge_cells(start_row=r_idx, start_column=1, end_row=r_idx, end_column=4)
             ws.cell(row=r_idx, column=1, value=desc_str).alignment = align_left
             ws.cell(row=r_idx, column=1).font = font_regular_sm
-            apply_range_border(r_idx, 1, r_idx, 4)
         else:
-            # Righe 4..10 e 13..17: Colonna B..D per descrizione
             ws.merge_cells(start_row=r_idx, start_column=2, end_row=r_idx, end_column=4)
             ws.cell(row=r_idx, column=2, value=desc_str).alignment = align_left
             ws.cell(row=r_idx, column=2).font = font_regular_xs if "Reperibilità" in desc_str else font_regular_sm
-            apply_range_border(r_idx, 2, r_idx, 4)
 
-    # 1) Merge 3 celle di "Str." (B7:B9)
+    # Merge 3 celle di "Str." (B7:B9)
     ws.merge_cells("B7:B9")
     ws["B7"] = "Str."
     ws["B7"].font = font_bold_sm
     ws["B7"].alignment = align_center
-    apply_range_border(7, 2, 9, 2)
 
-    # 2) Merge 2 celle di "Risc." (B17:B18)
+    # Merge 2 celle di "Risc." (B17:B18)
     ws.merge_cells("B17:B18")
     ws["B17"] = "Risc."
     ws["B17"].font = font_bold_sm
     ws["B17"].alignment = align_center
-    apply_range_border(17, 2, 18, 2)
 
     # =========================================================================
     # 4. POPOLAMENTO DATI NELLE 31 COLONNE (Righe 3..25)
@@ -655,7 +611,6 @@ def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> by
 
         for r_idx in range(3, 26):
             cell = ws.cell(row=r_idx, column=c_idx)
-            cell.border = b_thin
             cell.alignment = align_center
 
             if not d_info["exists"]:
@@ -687,7 +642,7 @@ def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> by
                 cell.value = d_info["buoni_pasto"]
                 cell.font = font_regular_sm
 
-    # Totali colonna 36 (AJ) per le voci di riga
+    # Totali colonna 36 (AJ) per le voci di riga (solo per le voci previste)
     tot_map = {
         11: data["tot_notturna"],
         12: data["tot_navigazione"],
@@ -697,75 +652,135 @@ def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> by
 
     for r_idx in range(7, 24):
         cell_tot = ws.cell(row=r_idx, column=36)
-        cell_tot.border = b_thin
         cell_tot.alignment = align_center
         cell_tot.font = font_bold_sm
         if r_idx in tot_map and tot_map[r_idx] > 0:
             cell_tot.value = tot_map[r_idx]
 
     # =========================================================================
-    # 5. TABELLA RIEPILOGO FERIE E COMPENSATIVI (A TUTTA LARGHEZZA)
+    # 5. MODIFICA 2: APPLICAZIONE DEI BORDI MARCATI (MEDIUM) IN EXCEL
     # =========================================================================
+    # 1. Bordo inferiore marcato sotto la testata (Riga 1)
+    for c in range(1, 37):
+        curr_b = ws.cell(row=1, column=c).border
+        ws.cell(row=1, column=c).border = Border(top=curr_b.top, bottom=medium_s, left=curr_b.left, right=curr_b.right)
+        curr_next = ws.cell(row=2, column=c).border
+        ws.cell(row=2, column=c).border = Border(top=medium_s, bottom=curr_next.bottom, left=curr_next.left, right=curr_next.right)
+
+    # 2. Bordo inferiore marcato sotto Equipaggio (Riga 4)
+    for c in range(1, 37):
+        curr_b = ws.cell(row=4, column=c).border
+        ws.cell(row=4, column=c).border = Border(top=curr_b.top, bottom=medium_s, left=curr_b.left, right=curr_b.right)
+        curr_next = ws.cell(row=5, column=c).border
+        ws.cell(row=5, column=c).border = Border(top=medium_s, bottom=curr_next.bottom, left=curr_next.left, right=curr_next.right)
+
+    # 3. Bordo inferiore marcato sotto Alle (Riga 6)
+    for c in range(1, 37):
+        curr_b = ws.cell(row=6, column=c).border
+        ws.cell(row=6, column=c).border = Border(top=curr_b.top, bottom=medium_s, left=curr_b.left, right=curr_b.right)
+        curr_next = ws.cell(row=7, column=c).border
+        ws.cell(row=7, column=c).border = Border(top=medium_s, bottom=curr_next.bottom, left=curr_next.left, right=curr_next.right)
+
+    # 4. Bordo inferiore marcato sotto Voce 17 (Riga 23)
+    for c in range(1, 37):
+        curr_b = ws.cell(row=23, column=c).border
+        ws.cell(row=23, column=c).border = Border(top=curr_b.top, bottom=medium_s, left=curr_b.left, right=curr_b.right)
+        curr_next = ws.cell(row=24, column=c).border
+        ws.cell(row=24, column=c).border = Border(top=medium_s, bottom=curr_next.bottom, left=curr_next.left, right=curr_next.right)
+
+    # 5. Bordo inferiore marcato sotto Firma del Capo Servizio (Riga 25)
+    for c in range(1, 37):
+        curr_b = ws.cell(row=25, column=c).border
+        ws.cell(row=25, column=c).border = Border(top=curr_b.top, bottom=medium_s, left=curr_b.left, right=curr_b.right)
+
+    # 6. Bordi verticali marcati:
+    # Tra colonna 4 (etichette) e colonna 5 (giorno 1) da riga 2 a 25
+    for r in range(2, 26):
+        cb4 = ws.cell(row=r, column=4).border
+        ws.cell(row=r, column=4).border = Border(top=cb4.top, bottom=cb4.bottom, left=cb4.left, right=medium_s)
+        cb5 = ws.cell(row=r, column=5).border
+        ws.cell(row=r, column=5).border = Border(top=cb5.top, bottom=cb5.bottom, left=medium_s, right=cb5.right)
+
+    # Tra colonna 35 (giorno 31) e colonna 36 (Totale) da riga 2 a 25
+    for r in range(2, 26):
+        cb35 = ws.cell(row=r, column=35).border
+        ws.cell(row=r, column=35).border = Border(top=cb35.top, bottom=cb35.bottom, left=cb35.left, right=medium_s)
+        cb36 = ws.cell(row=r, column=36).border
+        ws.cell(row=r, column=36).border = Border(top=cb36.top, bottom=cb36.bottom, left=medium_s, right=cb36.right)
+
+    # Perimetro esterno marcato (Righe 1..25, Colonne 1..36)
+    for c in range(1, 37):
+        cb1 = ws.cell(row=1, column=c).border
+        ws.cell(row=1, column=c).border = Border(top=medium_s, bottom=cb1.bottom, left=cb1.left, right=cb1.right)
+    for r in range(1, 26):
+        cb_l = ws.cell(row=r, column=1).border
+        ws.cell(row=r, column=1).border = Border(top=cb_l.top, bottom=cb_l.bottom, left=medium_s, right=cb_l.right)
+        cb_r = ws.cell(row=r, column=36).border
+        ws.cell(row=r, column=36).border = Border(top=cb_r.top, bottom=cb_r.bottom, left=cb_r.left, right=medium_s)
+
+    # =========================================================================
+    # 6. TABELLA RIEPILOGO FERIE E COMPENSATIVI (A TUTTA LARGHEZZA)
+    # =========================================================================
+    for r in range(27, 30):
+        for c in range(1, 37):
+            ws.cell(row=r, column=c).border = Border(top=thin_s, bottom=thin_s, left=thin_s, right=thin_s)
+
     # Riga 27: Intestazioni riepilogo
     ws.merge_cells("A27:D27")
-    apply_range_border(27, 1, 27, 4)
-
     ws.merge_cells("E27:L27")
     ws["E27"] = "Saldo inizio mese"
     ws["E27"].font = font_bold_sm
     ws["E27"].alignment = align_center
-    apply_range_border(27, 5, 27, 12)
 
     ws.merge_cells("M27:T27")
     ws["M27"] = "Fruito"
     ws["M27"].font = font_bold_sm
     ws["M27"].alignment = align_center
-    apply_range_border(27, 13, 27, 20)
 
     ws.merge_cells("U27:AB27")
     ws["U27"] = "Maturato"
     ws["U27"].font = font_bold_sm
     ws["U27"].alignment = align_center
-    apply_range_border(27, 21, 27, 28)
 
     ws.merge_cells("AC27:AJ27")
     ws["AC27"] = "Saldo fine mese"
     ws["AC27"].font = font_bold_sm
     ws["AC27"].alignment = align_center
-    apply_range_border(27, 29, 27, 36)
 
     # Riga 28: Ferie
     ws.merge_cells("A28:D28")
     ws["A28"] = "Ferie"
     ws["A28"].font = font_regular_sm
     ws["A28"].alignment = align_left
-    apply_range_border(28, 1, 28, 4)
     ws.merge_cells("E28:L28")
-    apply_range_border(28, 5, 28, 12)
     ws.merge_cells("M28:T28")
-    apply_range_border(28, 13, 28, 20)
     ws.merge_cells("U28:AB28")
-    apply_range_border(28, 21, 28, 28)
     ws.merge_cells("AC28:AJ28")
-    apply_range_border(28, 29, 28, 36)
 
     # Riga 29: Compensativi
     ws.merge_cells("A29:D29")
     ws["A29"] = "Compensativi"
     ws["A29"].font = font_regular_sm
     ws["A29"].alignment = align_left
-    apply_range_border(29, 1, 29, 4)
     ws.merge_cells("E29:L29")
-    apply_range_border(29, 5, 29, 12)
     ws.merge_cells("M29:T29")
-    apply_range_border(29, 13, 29, 20)
     ws.merge_cells("U29:AB29")
-    apply_range_border(29, 21, 29, 28)
     ws.merge_cells("AC29:AJ29")
-    apply_range_border(29, 29, 29, 36)
+
+    # Bordo esterno riepilogo marcato
+    for c in range(1, 37):
+        cbt = ws.cell(row=27, column=c).border
+        ws.cell(row=27, column=c).border = Border(top=medium_s, bottom=cbt.bottom, left=cbt.left, right=cbt.right)
+        cbb = ws.cell(row=29, column=c).border
+        ws.cell(row=29, column=c).border = Border(top=cbb.top, bottom=medium_s, left=cbb.left, right=cbb.right)
+    for r in range(27, 30):
+        cbl = ws.cell(row=r, column=1).border
+        ws.cell(row=r, column=1).border = Border(top=cbl.top, bottom=cbl.bottom, left=medium_s, right=cbl.right)
+        cbr = ws.cell(row=r, column=36).border
+        ws.cell(row=r, column=36).border = Border(top=cbr.top, bottom=cbr.bottom, left=cbr.left, right=medium_s)
 
     # =========================================================================
-    # 6. DIMENSIONAMENTO COLONNE E ALTEZZE RIGHE (SPECULARI AL PDF)
+    # 7. DIMENSIONAMENTO COLONNE E ALTEZZE RIGHE
     # =========================================================================
     ws.column_dimensions["A"].width = 3.6
     ws.column_dimensions["B"].width = 5.2
@@ -778,7 +793,6 @@ def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> by
 
     ws.column_dimensions["AJ"].width = 5.5
 
-    # Altezze righe Excel
     ws.row_dimensions[1].height = 20
     ws.row_dimensions[2].height = 16
     ws.row_dimensions[3].height = 15
@@ -788,8 +802,8 @@ def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> by
     for r in range(7, 24):
         ws.row_dimensions[r].height = 14
     ws.row_dimensions[24].height = 16
-    ws.row_dimensions[25].height = 36  # Riga alta per Firma Capo Servizio!
-    ws.row_dimensions[26].height = 8   # Spaziatore
+    ws.row_dimensions[25].height = 100  # Modifica 1: Riga alta 100 per la firma autografa!
+    ws.row_dimensions[26].height = 8    # Spaziatore
     ws.row_dimensions[27].height = 15
     ws.row_dimensions[28].height = 16
     ws.row_dimensions[29].height = 16
