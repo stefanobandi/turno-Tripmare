@@ -14,8 +14,12 @@ from engine import (
 from faq import render_documentation_section, render_faq_section
 from timesheet import generate_monthly_timesheet_pdf, generate_monthly_timesheet_excel
 from schedule_pdf import generate_schedule_bn_pdf
+from tracker import log_page_view, log_download
 
 st.set_page_config(page_title="Proiezione turno Tripmare", layout="wide")
+
+# Registrazione silenziosa dell'accesso alla pagina
+log_page_view()
 
 # Caricamento dello stile esterno
 if os.path.exists("style.css"):
@@ -221,6 +225,8 @@ with col_top_act2:
             file_name=pdf_name_schedule,
             mime="application/pdf",
             use_container_width=True,
+            on_click=log_download,
+            args=("pdf_turno_bn", title_pdf),
             help="Genera un PDF A4 orizzontale in puro bianco e nero, ottimizzato per stampare su carta senza consumare inchiostro."
         )
     except Exception as e:
@@ -320,7 +326,9 @@ if view_type == "Equipaggio Specifico":
             data=ics_data,
             file_name=ics_filename,
             mime="text/calendar",
-            use_container_width=True
+            use_container_width=True,
+            on_click=log_download,
+            args=("calendario_ics", f"Eq. {selected_crew} - {file_suffix}")
         )
         st.caption("Consiglio: importalo come calendario secondario su Google Calendar / Apple Calendar per accenderlo o spegnerlo a piacere.")
 
@@ -338,7 +346,9 @@ if view_type == "Equipaggio Specifico":
                     data=pdf_data,
                     file_name=pdf_name,
                     mime="application/pdf",
-                    use_container_width=True
+                    use_container_width=True,
+                    on_click=log_download,
+                    args=("pdf_presenze", f"Eq. {selected_crew} - {curr.year}_{curr.month:02d}")
                 )
         except Exception as e:
             with btn_c1:
@@ -353,7 +363,9 @@ if view_type == "Equipaggio Specifico":
                     data=excel_data,
                     file_name=excel_name,
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True
+                    use_container_width=True,
+                    on_click=log_download,
+                    args=("excel_presenze", f"Eq. {selected_crew} - {curr.year}_{curr.month:02d}")
                 )
         except Exception as e:
             with btn_c2:
