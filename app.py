@@ -13,19 +13,18 @@ from engine import (
 )
 from faq import render_documentation_section, render_faq_section
 from timesheet import generate_monthly_timesheet_pdf, generate_monthly_timesheet_excel
+from schedule_pdf import generate_schedule_bn_pdf
 
 st.set_page_config(page_title="Proiezione turno Tripmare", layout="wide")
 
-# Caricamento del foglio di stile esterno (style.css)
+# Caricamento dello stile esterno
 if os.path.exists("style.css"):
     with open("style.css", "r", encoding="utf-8") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-# Controllo parametro debug nell'URL (?debug=true)
 query_params = st.query_params
 debug_mode = query_params.get("debug", "").lower() in ["true", "1", "yes"]
 
-# Mappatura dei mesi
 MESI_ITALIANO = [
     "", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
     "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
@@ -37,7 +36,6 @@ MESI_BREVI_ITALIANO = [
 ]
 
 def build_cell_tooltip(crew_num: int, target_date: datetime.date, mezzo: int, stato: str) -> str:
-    """Restituisce il testo esplicativo per il tooltip al passaggio del mouse."""
     mese_abbr = MESI_BREVI_ITALIANO[target_date.month]
     date_formatted = f"{target_date.strftime('%d')} {mese_abbr} {target_date.year}"
     lines = [f"EQ{crew_num} - {date_formatted}"]
@@ -67,11 +65,9 @@ def build_cell_tooltip(crew_num: int, target_date: datetime.date, mezzo: int, st
 
     return "&#10;".join(lines)
 
-# Inizializzazione session_state per navigazione
 if "current_date" not in st.session_state:
     st.session_state.current_date = datetime.date.today()
 
-# Header e Controlli Superiori
 st.title("⚓ Proiezione turno Tripmare")
 st.markdown('<p class="device-hint">📱 Su dispositivi mobili si consiglia la visualizzazione in orizzontale (Landscape).</p>', unsafe_allow_html=True)
 
@@ -110,7 +106,6 @@ with c4:
     else:
         num_weeks = 1
 
-# Barra di Navigazione Mese/Anno e Pulsanti Rapidi
 st.write("---")
 nav1, nav2, nav3, nav4, nav5 = st.columns([1, 1, 1, 1.2, 1.2])
 
@@ -184,14 +179,15 @@ if time_horizon == "Mese Completo":
     month = curr.month
     _, num_days = calendar.monthrange(year, month)
     dates_to_show = [datetime.date(year, month, day) for day in range(1, num_days + 1)]
+    period_label = f"Mese di {MESI_ITALIANO[month]} {year}"
     st.markdown(f"### Mese di **{MESI_ITALIANO[month]} {year}**")
 else:
     start_monday = curr - datetime.timedelta(days=curr.weekday())
     total_days = num_weeks * 7
     dates_to_show = [start_monday + datetime.timedelta(days=i) for i in range(total_days)]
+    period_label = f"{num_weeks} Settimane (dal {dates_to_show[0].strftime('%d/%m/%Y')} al {dates_to_show[-1].strftime('%d/%m/%Y')})"
     st.markdown(f"### Visualizzazione **{num_weeks} Settimana/e** (dal {dates_to_show[0].strftime('%d/%m/%Y')} al {dates_to_show[-1].strftime('%d/%m/%Y')})")
 
-# Validazione di integrità del periodo corrente
 validation_report = validate_schedule_period(dates_to_show)
 
 if not validation_report["is_valid"]:
@@ -200,50 +196,37 @@ if not validation_report["is_valid"]:
         "I dati visualizzati potrebbero non essere affidabili. Si prega cortesemente di contattare l'amministratore (Stefano).**"
     )
 
-# Pannello Riservato Debug Mode (visibile solo con ?debug=true nell'URL)
-if debug_mode:
-    with st.expander("🛠️ PANNELLO DIAGNOSTICO SVILUPPATORE (Debug Mode Attivo)", expanded=True):
-        st.write("### Parametri di Ancoraggio e Sfasamento Temporale")
-        target_ref = dates_to_show[0]
-        target_monday = target_ref - datetime.timedelta(days=target_ref.weekday())
-        delta_days = (target_monday - ANCHOR_DATE).days
-        delta_weeks = delta_days // 7
-        curr_week_idx = delta_weeks % 21
-
-        d_col1, d_col2, d_col3, d_col4 = st.columns(4)
-        d_col1.metric("Data Ancora Master", ANCHOR_DATE.strftime("%d/%m/%Y"))
-        d_col2.metric("Delta Giorni", f"{delta_days} gg")
-        d_col3.metric("Delta Settimane", f"{delta_weeks} sett")
-        d_col4.metric("Indice Settimana (mod 21)", f"Settimana {curr_week_idx + 1} (idx {curr_week_idx})")
-
-        st.write("---")
-        st.write("### Verifica Integrità Periodo Visualizzato")
-        if validation_report["is_valid"]:
-            st.success(f"✅ Quadratura verificata al 100% per tutti i {validation_report['total_days']} giorni del periodo selezionato.")
-        else:
-            st.error(f"❌ Rilevate {validation_report['invalid_count']} giornate non conformi su {validation_report['total_days']} giorni.")
-            for inv in validation_report["invalid_days"]:
-                st.write(f"**Data {inv['date'].strftime('%d/%m/%Y')}**: {', '.join(inv['errors'])}")
-
-        st.write("---")
-        st.write("### Test Ciclo Master Completo (147 giorni continui)")
-        master_dates = [ANCHOR_DATE + datetime.timedelta(days=i) for i in range(21 * 7)]
-        master_report = validate_schedule_period(master_dates)
-        if master_report["is_valid"]:
-            st.success("✅ Il ciclo master di 21 settimane (147 giorni) rispetta integralmente tutti i vincoli operativi (4-4-4-3-1-1-1-1-1-1).")
-        else:
-            st.error(f"❌ Anomalie nel ciclo master su {master_report['invalid_count']} giorni.")
-
-# Determinazione della lista equipaggi da stampare
+# Determinazione della lista equipaggi
 if view_type == "Equipaggio Specifico":
     crews_to_render = [selected_crew]
+    title_pdf = f"Equipaggio {selected_crew} - {period_label}"
 elif view_type == "Terzina":
     start_c = (terzina_choice - 1) * 3 + 1
     crews_to_render = [start_c, start_c + 1, start_c + 2]
+    title_pdf = f"Terzina {terzina_choice} (Eq. {start_c}-{start_c+1}-{start_c+2}) - {period_label}"
 else:
     crews_to_render = list(range(1, 22))
+    title_pdf = f"Tutti i 21 Equipaggi - {period_label}"
 
-# Generazione della tabella HTML
+# Pulsante Stampa Turno Visualizzato in Bianco e Nero
+col_top_act1, col_top_act2 = st.columns([3, 1.2])
+with col_top_act2:
+    try:
+        schedule_pdf_data = generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf)
+        clean_file_label = period_label.replace(" ", "_").replace("/", "-")
+        pdf_name_schedule = f"turno_tripmare_{clean_file_label}_BN.pdf"
+        st.download_button(
+            label="🖨️ Stampa Turno Visualizzato (PDF B/N)",
+            data=schedule_pdf_data,
+            file_name=pdf_name_schedule,
+            mime="application/pdf",
+            use_container_width=True,
+            help="Genera un PDF A4 orizzontale in puro bianco e nero, ottimizzato per stampare su carta senza consumare inchiostro."
+        )
+    except Exception as e:
+        st.error(f"Errore stampa turno: {e}")
+
+# Generazione della tabella HTML a video
 html_table = ['<div class="matrix-wrapper"><table class="matrix-table">']
 html_table.append('<thead><tr><th class="crew-label-cell th-corner-1">Giorno</th>')
 day_names_it = ["lu", "ma", "me", "gi", "ve", "sa", "do"]
@@ -313,7 +296,6 @@ for c_num in crews_to_render:
 html_table.append('</tbody></table></div>')
 st.markdown("".join(html_table), unsafe_allow_html=True)
 
-# Voce di integrità del turno verificata
 if validation_report["is_valid"]:
     st.markdown(
         '<div class="integrity-ok-badge">✅ Integrità del turno verificata (21 equipaggi conformi)</div>',
@@ -378,7 +360,7 @@ if view_type == "Equipaggio Specifico":
             with btn_c2:
                 st.error(f"Errore generazione Excel: {e}")
 
-        st.caption("Modulo precompilato (PDF vettoriale o foglio Excel modificabile) con turni solari, indennità e maggiorazioni.")
+        st.caption("Modulo precompilato (PDF vettoriale o foglio Excel con formule di somma) con turni solari, indennità e maggiorazioni.")
 
 # Box Legenda
 st.markdown("""
@@ -414,6 +396,5 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Render Sezioni Documenti e FAQ
 render_documentation_section()
 render_faq_section()
