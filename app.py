@@ -325,8 +325,7 @@ if view_type == "Equipaggio Specifico":
         st.caption("Consiglio: importalo come calendario secondario su Google Calendar / Apple Calendar per accenderlo o spegnerlo a piacere.")
 
     with col_exp_2:
-        st.markdown("##### 📄 Foglio Presenze Mensile (Work in progress)")
-        st.info("⚠️ **Modulo in fase di sviluppo**: il layout grafico è in fase di perfezionamento e non è da considerarsi definitivo.")
+        st.markdown("##### 📄 Foglio Presenze Mensile")
 
         btn_c1, btn_c2 = st.columns(2)
 
