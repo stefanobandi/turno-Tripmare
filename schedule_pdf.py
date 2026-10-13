@@ -8,7 +8,8 @@ MESI_ITALIANO = [
     "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
 ]
 
-GIORNI_SETT_SHORT = ["lu", "ma", "me", "gi", "ve", "sa", "do"]
+# Giorni della settimana con prima lettera maiuscola (Lu, Ma, Me, Gi, Ve, Sa, Do)
+GIORNI_SETT_TITLE = ["Lu", "Ma", "Me", "Gi", "Ve", "Sa", "Do"]
 
 def generate_schedule_bn_pdf(dates_list: list, crews_list: list, title_desc: str) -> bytes:
     """
@@ -20,6 +21,8 @@ def generate_schedule_bn_pdf(dates_list: list, crews_list: list, title_desc: str
     - Riposi (L, L1..L3) e riserve (R1..R3) stampati a carattere normale (no grassetto).
     - Festivi e domeniche indicati con un'ellisse sottile attorno al giorno nella testata.
     - I turni lavorativi mostrano il numero mezzo sopra e l'orario/stato sotto.
+    - Giorni della settimana indicati con iniziale maiuscola (Lu, Ma, Me, etc.).
+    - Nessuna riga a piè di pagina aggiuntiva.
     """
     PAGE_W = 841.89
     PAGE_H = 595.28
@@ -90,8 +93,8 @@ def generate_schedule_bn_pdf(dates_list: list, crews_list: list, title_desc: str
         c.setFont("Helvetica-Bold", font_day_size)
         c.drawCentredString(cx, Y_GRID_TOP - 10.0, str(d.day))
 
-        # Riga 2: Sigla giorno settimana
-        day_str = GIORNI_SETT_SHORT[d.weekday()]
+        # Riga 2: Sigla giorno settimana con prima lettera maiuscola (Lu, Ma, Me...)
+        day_str = GIORNI_SETT_TITLE[d.weekday()]
         c.setFont("Helvetica-Bold", font_day_size)
         c.drawCentredString(cx, y_h1_bot - 10.0, day_str)
 
@@ -157,10 +160,6 @@ def generate_schedule_bn_pdf(dates_list: list, crews_list: list, title_desc: str
     # Perimetro esterno marcato
     c.setLineWidth(1.2)
     c.rect(MARGIN_LEFT, y_table_bot, TABLE_W, actual_table_h, stroke=1, fill=0)
-
-    # Didascalia a piè di pagina sobria
-    c.setFont("Helvetica", 7.0)
-    c.drawString(MARGIN_LEFT, y_table_bot - 10.0, "Tripmare S.p.A. - Turno Operativo Rimorchiatori Trieste (Stampa B/N)")
 
     c.save()
     buffer.seek(0)
