@@ -1,5 +1,6 @@
 import streamlit as st
 import datetime
+from collections import Counter
 import firebase_admin
 from firebase_admin import credentials, firestore
 
@@ -58,3 +59,58 @@ def log_download(tipo_file: str, dettaglio: str = ""):
         db.collection("analytics_download").add(doc_data)
     except Exception:
         pass
+
+def get_analytics_summary() -> dict:
+    """
+    Recupera i dati aggregati da Firestore per la dashboard riservata dell'amministratore.
+    """
+    db = init_firebase()
+    if not db:
+        return {"connected": False}
+
+    try:
+        # Conteggio visite
+        visite_ref = db.collection("analytics_visite")
+        visite_docs = list(visite_ref.stream())
+        tot_visite = len(visite_docs)
+
+        # Download e dettagli
+        dl_ref = db.collection("analytics_download").order_by("timestamp", direction=firestore.Query.DESCENDING)
+        dl_docs = list(dl_ref.limit(200).stream())
+        tot_download = len(dl_docs)
+
+        tipi_counter = Counter()
+        crews_counter = Counter()
+        recent_events = []
+
+        for d in dl_docs:
+            data = d.to_dict()
+            t_file = data.get("tipo_file", "sconosciuto")
+            det = data.get("dettaglio", "")
+            d_str = data.get("data_str", "")
+
+            tipi_counter[t_file] += 1
+
+            if "Eq." in det:
+                parts = det.split("-")[0].strip()
+                crews_counter[parts] += 1
+            elif "Equipaggio" in det:
+                parts = det.split("-")[0].strip()
+                crews_counter[parts] += 1
+
+            recent_events.append({
+                "Data/Ora (UTC)": d_str,
+                "Tipo": t_file,
+                "Dettaglio": det
+            })
+
+        return {
+            "connected": True,
+            "tot_visite": tot_visite,
+            "tot_download": tot_download,
+            "tipi_download": dict(tipi_counter),
+            "crews_stats": dict(crews_counter),
+            "recent_events": recent_events[:20]
+        }
+    except Exception as e:
+        return {"connected": False, "error": str(e)}
