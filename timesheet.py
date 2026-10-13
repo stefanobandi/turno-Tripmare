@@ -114,7 +114,7 @@ def get_month_crew_data(year: int, month: int, crew_num: int) -> dict:
 def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> bytes:
     """
     Genera il foglio presenze mensile in PDF vettoriale A4 Landscape nativo (842 x 595 pt),
-    con perfetta conformità geometrica al modulo originale Tripmare.
+    con fedeltà geometrica al modulo originale Tripmare.
     """
     PAGE_W = 841.89
     PAGE_H = 595.28
@@ -139,9 +139,6 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
     X_TOTAL_START = MARGIN_RIGHT - TOTAL_COL_W
 
     # Ripartizione orizzontale della colonna etichette (166 pt)
-    # X_SUB_NUM: colonna numeri 1..17 (16 pt)
-    # X_SUB_QUAL: colonna qualificatori 'Str.' / 'Risc.' (26 pt)
-    # X_SUB_ORARIO: colonna dove comincia Dalle/Alle (128 pt da sinistra, lasciando 38 pt a Dalle/Alle e all'Anno)
     X_SUB_NUM = X_LABEL_START + 16.0
     X_SUB_QUAL = X_SUB_NUM + 26.0
     X_SUB_ORARIO = X_DAYS_START - 36.0
@@ -215,13 +212,9 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
     c.line(x_h_nome, y_num_days, x_h_nome, y_top_header)
     c.line(x_h_codice, y_num_days, x_h_codice, y_top_header)
 
-    # Intestazione "Mese" centrata e in grassetto grande come nell'originale
-    c.setFont("Helvetica-Bold", 11.5)
-    c.drawCentredString(MARGIN_LEFT + LABEL_COL_W / 2.0, y_num_days + 6.0, "Mese")
-
-    # Mese selezionato in testo compatto discreto o titolo
-    c.setFont("Helvetica-Bold", 9.0)
-    c.drawString(MARGIN_LEFT + 6.0, y_num_days + 6.0, MESI_MAIUSCOLO[month])
+    # Intestazione "Mese": grande e centrata nella sua cella superiore
+    c.setFont("Helvetica-Bold", 12.0)
+    c.drawCentredString(MARGIN_LEFT + LABEL_COL_W / 2.0, y_num_days + 6.5, "Mese")
 
     c.setFont("Helvetica-Bold", 10.5)
     c.drawString(x_h_cognome + 8.0, y_num_days + 6.0, "Cognome")
@@ -229,9 +222,9 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
     c.drawString(x_h_codice + 8.0, y_num_days + 6.0, "Codice")
 
     # =========================================================================
-    # 2. LINEE ORIZZONTALI E GRASSETTI PRINCIPALI
+    # 2. LINEE ORIZZONTALI E BORDATURE
     # =========================================================================
-    # LINEA GRASSETTO: Sotto la testata superiore (separa Mese/Cognome da Anno/Giorni)
+    # LINEA GRASSETTO: Sotto la testata superiore
     c.setLineWidth(1.4)
     c.line(MARGIN_LEFT, y_num_days, MARGIN_RIGHT, y_num_days)
 
@@ -244,22 +237,30 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
     c.setLineWidth(1.4)
     c.line(MARGIN_LEFT, y_dalle, MARGIN_RIGHT, y_dalle)
 
-    # Linea sottile tra Dalle e Alle
+    # Linea sottile tra Dalle e Alle (NON attraversa la colonna Tot. che è mergiata)
     c.setLineWidth(0.5)
-    c.line(X_SUB_ORARIO, y_alle, MARGIN_RIGHT, y_alle)
+    c.line(X_SUB_ORARIO, y_alle, X_TOTAL_START, y_alle)
 
-    # LINEA GRASSETTO: Sotto Alle (separa orari di servizio dalle voci straordinari)
+    # LINEA GRASSETTO: Sotto Alle (separa orari da straordinari)
     c.setLineWidth(1.4)
     c.line(MARGIN_LEFT, y_items_start, MARGIN_RIGHT, y_items_start)
 
     # Linee orizzontali del blocco voci 1..17
+    # (Per le righe 1 e 2, la linea orizzontale salta la colonna di "Str." che è mergiata)
     for code, _, _, _, y_b in item_rows_coords:
-        if code == "STR_3":
-            # LINEA GRASSETTO: separa straordinari 1, 2, 3 dalle indennità 4..17
-            c.setLineWidth(1.4)
+        if code in ["STR_1", "STR_2"]:
+            c.setLineWidth(0.5)
+            # Tratto a sinistra per il numero
+            c.line(MARGIN_LEFT, y_b, X_SUB_NUM, y_b)
+            # Salto di X_SUB_NUM -> X_SUB_QUAL (cella mergiata di Str.)
+            # Tratto da X_SUB_QUAL fino al fondo tabella
+            c.line(X_SUB_QUAL, y_b, MARGIN_RIGHT, y_b)
+        elif code == "STR_3":
+            # Modifica 2: Riga orizzontale normale (0.5 pt) tra Nott. Festivo e Servizi Prolungati
+            c.setLineWidth(0.5)
             c.line(MARGIN_LEFT, y_b, MARGIN_RIGHT, y_b)
         elif code == "VOCE_17":
-            # LINEA GRASSETTO: separa le voci dai capi servizio
+            # Linea marcata che separa le voci dai capi servizio
             c.setLineWidth(1.4)
             c.line(MARGIN_LEFT, y_b, MARGIN_RIGHT, y_b)
         elif code == "CAPO_FIRMA":
@@ -271,7 +272,11 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
     # =========================================================================
     # 3. ETICHETTE E ALLINEAMENTI DELLA COLONNA SINISTRA
     # =========================================================================
-    # Casellina dell'Anno (allineata sopra Dalle/Alle)
+    # Modifica 1: Nome del mese nella casella bianca sotto a Mese, a fianco dell'anno
+    c.setFont("Helvetica-Bold", 10.0)
+    c.drawCentredString(MARGIN_LEFT + (X_SUB_ORARIO - MARGIN_LEFT) / 2.0, y_num_days - 9.5, MESI_MAIUSCOLO[month])
+
+    # Casellina dell'Anno (sopra Dalle/Alle)
     c.setLineWidth(0.6)
     c.line(X_SUB_ORARIO, y_num_days, X_SUB_ORARIO, y_weekday)
     c.setFont("Helvetica", 8.5)
@@ -296,7 +301,7 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
     c.drawCentredString(X_SUB_ORARIO + (X_DAYS_START - X_SUB_ORARIO) / 2.0, y_dalle - 8.5, "Dalle")
     c.drawCentredString(X_SUB_ORARIO + (X_DAYS_START - X_SUB_ORARIO) / 2.0, y_alle - 8.5, "Alle")
 
-    # "Tot." sopra la colonna totale (a cavallo tra Dalle e Alle)
+    # Modifica 4: "Tot." mergiato su 2 celle verticali (a cavallo tra Dalle e Alle)
     c.setFont("Helvetica-Bold", 8.0)
     c.drawCentredString(X_TOTAL_START + TOTAL_COL_W / 2.0, y_dalle - 14.0, "Tot.")
 
@@ -309,11 +314,9 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
     c.setLineWidth(0.5)
     # Colonnina numeri 1..17
     c.line(X_SUB_NUM, y_items_start, X_SUB_NUM, y_voci_bot)
-    
-    # Colonnina qualificatore 'Str.' (unificata per le righe 1, 2, 3)
-    c.line(X_SUB_QUAL, y_items_start, X_SUB_QUAL, y_str3_bot)
 
-    # Scrittura "Str." centrata verticalmente su righe 1-3
+    # Modifica 3: Merge delle 3 celle per "Str." sotto Orario di servizio
+    c.line(X_SUB_QUAL, y_items_start, X_SUB_QUAL, y_str3_bot)
     c.setFont("Helvetica-Bold", 8.0)
     c.drawCentredString(X_SUB_NUM + (X_SUB_QUAL - X_SUB_NUM) / 2.0, y_items_start - (3 * H_ROW_ITEM) / 2.0 - 2.5, "Str.")
 
@@ -432,30 +435,39 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
             c.drawCentredString(cx_tot, y_m, str(data["tot_buoni_pasto"]))
 
     # =========================================================================
-    # 7. TABELLA RIEPILOGO FERIE E COMPENSATIVI (IN BASSO A SINISTRA)
+    # 7. TABELLA RIEPILOGO FERIE E COMPENSATIVI (LUNGA COME TUTTA LA TABELLA)
     # =========================================================================
+    # Modifica 5: SUMMARY_W esteso da MARGIN_LEFT a MARGIN_RIGHT (pari a TABLE_W)
     Y_SUMMARY_TOP = Y_TABLE_BOTTOM - 6.0
-    SUMMARY_W = 440.0
+    SUMMARY_W = TABLE_W
     SUMMARY_H = 36.0
 
     c.setLineWidth(1.0)
     c.rect(MARGIN_LEFT, Y_SUMMARY_TOP - SUMMARY_H, SUMMARY_W, SUMMARY_H, stroke=1, fill=0)
 
+    # Linee orizzontali interne
     c.setLineWidth(0.5)
     c.line(MARGIN_LEFT, Y_SUMMARY_TOP - 12.0, MARGIN_LEFT + SUMMARY_W, Y_SUMMARY_TOP - 12.0)
     c.line(MARGIN_LEFT, Y_SUMMARY_TOP - 24.0, MARGIN_LEFT + SUMMARY_W, Y_SUMMARY_TOP - 24.0)
 
-    col_splits = [110.0, 192.5, 275.0, 357.5]
-    for split_x in col_splits:
-        c.line(MARGIN_LEFT + split_x, Y_SUMMARY_TOP, MARGIN_LEFT + split_x, Y_SUMMARY_TOP - SUMMARY_H)
+    # Ripartizione colonne riassuntive:
+    # 1. Colonna etichette sinistra = LABEL_COL_W (166 pt)
+    # 2. Le restanti 4 colonne si dividono equamente lo spazio restante (TABLE_W - LABEL_COL_W)
+    X_REST_START = MARGIN_LEFT + LABEL_COL_W
+    SUB_COL_W = (TABLE_W - LABEL_COL_W) / 4.0
 
-    c.setFont("Helvetica-Bold", 7.0)
-    c.drawCentredString(MARGIN_LEFT + 151.0, Y_SUMMARY_TOP - 9.0, "Saldo inizio mese")
-    c.drawCentredString(MARGIN_LEFT + 233.5, Y_SUMMARY_TOP - 9.0, "Fruito")
-    c.drawCentredString(MARGIN_LEFT + 316.0, Y_SUMMARY_TOP - 9.0, "Maturato")
-    c.drawCentredString(MARGIN_LEFT + 398.5, Y_SUMMARY_TOP - 9.0, "Saldo fine mese")
+    c.line(X_REST_START, Y_SUMMARY_TOP, X_REST_START, Y_SUMMARY_TOP - SUMMARY_H)
+    for i in range(1, 4):
+        x_div = X_REST_START + i * SUB_COL_W
+        c.line(x_div, Y_SUMMARY_TOP, x_div, Y_SUMMARY_TOP - SUMMARY_H)
 
-    c.setFont("Helvetica", 7.5)
+    c.setFont("Helvetica-Bold", 7.5)
+    c.drawCentredString(X_REST_START + 0.5 * SUB_COL_W, Y_SUMMARY_TOP - 9.0, "Saldo inizio mese")
+    c.drawCentredString(X_REST_START + 1.5 * SUB_COL_W, Y_SUMMARY_TOP - 9.0, "Fruito")
+    c.drawCentredString(X_REST_START + 2.5 * SUB_COL_W, Y_SUMMARY_TOP - 9.0, "Maturato")
+    c.drawCentredString(X_REST_START + 3.5 * SUB_COL_W, Y_SUMMARY_TOP - 9.0, "Saldo fine mese")
+
+    c.setFont("Helvetica", 8.0)
     c.drawString(MARGIN_LEFT + 6.0, Y_SUMMARY_TOP - 21.0, "Ferie")
     c.drawString(MARGIN_LEFT + 6.0, Y_SUMMARY_TOP - 33.0, "Compensativi")
 
