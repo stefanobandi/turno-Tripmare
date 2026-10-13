@@ -27,9 +27,7 @@ def get_month_crew_data(year: int, month: int, crew_num: int) -> dict:
 
     for day in range(1, 32):
         if day > num_days:
-            days_data[day] = {
-                "exists": False
-            }
+            days_data[day] = {"exists": False}
             continue
 
         target_date = datetime.date(year, month, day)
@@ -116,7 +114,7 @@ def get_month_crew_data(year: int, month: int, crew_num: int) -> dict:
 def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> bytes:
     """
     Genera il foglio presenze mensile da zero in PDF vettoriale A4 Landscape nativo (842 x 595 pt),
-    riproducendo esattamente la grafica del modulo aziendale Tripmare.
+    riproducendo fedelmente layout, riquadri ed evidenziazioni del modulo originale Tripmare.
     """
     PAGE_W = 841.89
     PAGE_H = 595.28
@@ -125,231 +123,312 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=(PAGE_W, PAGE_H))
 
-    # Margini del foglio A4
-    MARGIN_LEFT = 28.0
-    MARGIN_RIGHT = PAGE_W - 28.0
-    MARGIN_TOP = PAGE_H - 24.0
+    # Margini pagina A4 Landscape
+    MARGIN_LEFT = 26.0
+    MARGIN_RIGHT = PAGE_W - 26.0
+    TABLE_W = MARGIN_RIGHT - MARGIN_LEFT
 
-    # Dimensionamento colonne
-    LABEL_COL_W = 168.0
-    TOTAL_COL_W = 26.0
-    GRID_WIDTH = MARGIN_RIGHT - MARGIN_LEFT - LABEL_COL_W - TOTAL_COL_W
-    DAY_COL_W = GRID_WIDTH / 31.0
+    # Suddivisione orizzontale:
+    # Etichette sinistra: 165 pt (suddivise internamente in 4 sottocolonne come in Excel)
+    LABEL_COL_W = 165.0
+    TOTAL_COL_W = 28.0
+    GRID_DAYS_W = TABLE_W - LABEL_COL_W - TOTAL_COL_W
+    DAY_COL_W = GRID_DAYS_W / 31.0
 
+    X_LABEL_START = MARGIN_LEFT
     X_DAYS_START = MARGIN_LEFT + LABEL_COL_W
-    X_TOTAL = MARGIN_RIGHT - TOTAL_COL_W
+    X_TOTAL_START = MARGIN_RIGHT - TOTAL_COL_W
+
+    # Sottocolonne dell'area etichette sinistra (165 pt)
+    # X0: Start (0)
+    # X1: Num voce (1..17) -> +14 pt
+    # X2: Qualificatore (Str. / Risc.) -> +24 pt
+    # X3: Orario servizio / Dalle-Alle divider -> +105 pt
+    X_SUB_NUM = X_LABEL_START + 14.0
+    X_SUB_QUAL = X_SUB_NUM + 24.0
+    X_SUB_ORARIO = X_LABEL_START + 105.0
 
     def get_cx(d: int) -> float:
         return X_DAYS_START + (d - 1) * DAY_COL_W + (DAY_COL_W / 2.0)
 
-    # 1. TESTATA SUPERIORE (Mese, Anno, Cognome, Nome, Codice)
-    Y_HEADER_TOP = MARGIN_TOP
-    Y_HEADER_BOTTOM = MARGIN_TOP - 30.0
+    # 1. STRUTTURA RIGHE
+    # Definizione altezze verticali dal bordo superiore
+    Y_TABLE_TOP = PAGE_H - 24.0
 
-    c.setLineWidth(1.0)
-    c.rect(MARGIN_LEFT, Y_HEADER_BOTTOM, MARGIN_RIGHT - MARGIN_LEFT, 30.0, stroke=1, fill=0)
+    H_TOP_HEADER = 20.0     # Riga Mese, Cognome, Nome, Codice
+    H_ROW_NUM_DAYS = 13.0   # Riga Anno + Numeri 1..31
+    H_ROW_WEEKDAY = 13.0    # giorno della settimana
+    H_ROW_CREW = 13.0       # Equipaggio
+    H_ROW_DALLE = 12.0      # Dalle
+    H_ROW_ALLE = 12.0       # Alle
+    H_ROW_ITEM = 12.0       # Righe voci 1..17
+    H_ROW_CAPO_COG = 14.0   # Cognome del Capo Servizio
+    H_ROW_CAPO_FIRMA = 26.0 # Firma del Capo Servizio
 
-    # Separatori verticali testata
-    x_h1 = MARGIN_LEFT + 110.0
-    x_h2 = x_h1 + 240.0
-    x_h3 = x_h2 + 220.0
-
-    c.setLineWidth(0.6)
-    c.line(x_h1, Y_HEADER_BOTTOM, x_h1, Y_HEADER_TOP)
-    c.line(x_h2, Y_HEADER_BOTTOM, x_h2, Y_HEADER_TOP)
-    c.line(x_h3, Y_HEADER_BOTTOM, x_h3, Y_HEADER_TOP)
-
-    # Testi fissi testata
-    c.setFont("Helvetica-Bold", 8.0)
-    c.drawString(MARGIN_LEFT + 6.0, Y_HEADER_TOP - 10.0, "Mese")
-    c.drawString(x_h1 + 6.0, Y_HEADER_TOP - 10.0, "Cognome")
-    c.drawString(x_h2 + 6.0, Y_HEADER_TOP - 10.0, "Nome")
-    c.drawString(x_h3 + 6.0, Y_HEADER_TOP - 10.0, "Codice")
-
-    # Mese e Anno compilati
-    c.setFont("Helvetica-Bold", 11.0)
-    c.drawString(MARGIN_LEFT + 6.0, Y_HEADER_TOP - 23.0, MESI_MAIUSCOLO[month])
-    c.drawString(MARGIN_LEFT + 78.0, Y_HEADER_TOP - 23.0, str(year))
-
-    # 2. DEFINIZIONE RIGHE DELLA GRIGLIA PRINCIPALE
-    # Lista righe: (tipo_riga, label_riga, altezza_pt)
-    rows_def = [
-        ("NUMERI_GIORNO", "", 13.0),
-        ("GIORNO_SETT", "giorno della settimana", 13.0),
-        ("EQUIPAGGIO", "Equipaggio", 13.0),
-        ("DALLE", "Orario di servizio   Dalle", 12.0),
-        ("ALLE", "                              Alle", 12.0),
-        ("STR_1", "1  Str.  Diu. Feriale", 12.0),
-        ("STR_2", "2         Nott. Fer./ Diu. Festivo", 12.0),
-        ("STR_3", "3         Nott. Festivo", 12.0),
-        ("VOCE_4", "4  Servizi Prolungati", 12.0),
-        ("VOCE_5", "5  Maggiorazione Notturna", 12.0),
-        ("VOCE_6", "6  Indennità Navigazione", 12.0),
-        ("VOCE_7", "7  Indennità Sostitutiva", 12.0),
-        ("VOCE_8", "8  Festivo", 12.0),
-        ("VOCE_9", "9  Lavori non rientranti", 12.0),
-        ("VOCE_10", "10 Passaggio", 12.0),
-        ("VOCE_11", "11 Risc. Diurno", 12.0),
-        ("VOCE_12", "12 Risc. Notturno", 12.0),
-        ("VOCE_13", "13 Compensativo/i Maturato/i", 12.0),
-        ("VOCE_14", "14 Reperibilità (solo 8-20 00-08)", 12.0),
-        ("VOCE_15", "15 Buoni pasto", 12.0),
-        ("VOCE_16", "16 Ore Sciopero", 12.0),
-        ("VOCE_17", "17", 12.0),
-        ("CAPO_COG", "Cognome del Capo Servizio", 15.0),
-        ("CAPO_FIRMA", "Firma del Capo Servizio", 28.0),
+    # Elenco righe per la griglia delle voci (da riga 1 a riga 17 + capi)
+    items_def = [
+        ("STR_1", "1", "Str.", "Diu. Feriale"),
+        ("STR_2", "2", "", "Nott. Fer./ Diu. Festivo"),
+        ("STR_3", "3", "", "Nott. Festivo"),
+        ("VOCE_4", "4", "", "Servizi Prolungati"),
+        ("VOCE_5", "5", "", "Maggiorazione Notturna"),
+        ("VOCE_6", "6", "", "Indennità Navigazione"),
+        ("VOCE_7", "7", "", "Indennità Sostitutiva"),
+        ("VOCE_8", "8", "", "Festivo"),
+        ("VOCE_9", "9", "", "Lavori non rientranti"),
+        ("VOCE_10", "10", "", "Passaggio"),
+        ("VOCE_11", "11", "Risc.", "Diurno"),
+        ("VOCE_12", "12", "", "Notturno"),
+        ("VOCE_13", "13", "", "Compensativo/i Maturato/i"),
+        ("VOCE_14", "14", "", "Reperibilità (solo 8-20 00-08)"),
+        ("VOCE_15", "15", "", "Buoni pasto"),
+        ("VOCE_16", "16", "", "Ore Sciopero"),
+        ("VOCE_17", "17", "", ""),
+        ("CAPO_COG", "", "", "Cognome del Capo Servizio"),
+        ("CAPO_FIRMA", "", "", "Firma del Capo Servizio")
     ]
 
-    # Calcolo coordinate Y delle righe
-    y_current = Y_HEADER_BOTTOM - 4.0
-    row_coords = []
-    for r_type, r_label, r_h in rows_def:
-        y_top = y_current
-        y_bot = y_current - r_h
-        row_coords.append((r_type, r_label, y_top, y_bot))
-        y_current = y_bot
+    # Coordinate verticali
+    y_top_header = Y_TABLE_TOP
+    y_num_days = y_top_header - H_TOP_HEADER
+    y_weekday = y_num_days - H_ROW_NUM_DAYS
+    y_crew = y_weekday - H_ROW_WEEKDAY
+    y_dalle = y_crew - H_ROW_CREW
+    y_alle = y_dalle - H_ROW_DALLE
+    y_items_start = y_alle - H_ROW_ALLE
 
-    grid_top = row_coords[0][2]
-    grid_bot = row_coords[-1][3]
+    # Calcolo coordinate Y per ogni riga voci
+    item_rows_coords = []
+    curr_y = y_items_start
+    for code, num_str, qual_str, desc_str in items_def:
+        h = H_ROW_CAPO_FIRMA if code == "CAPO_FIRMA" else (H_ROW_CAPO_COG if code == "CAPO_COG" else H_ROW_ITEM)
+        y_top = curr_y
+        y_bot = curr_y - h
+        item_rows_coords.append((code, num_str, qual_str, desc_str, y_top, y_bot))
+        curr_y = y_bot
 
-    # Tracciamento righe orizzontali
+    Y_TABLE_BOTTOM = curr_y
+
+    # =========================================================================
+    # DISEGNO GRIGLIA, RIGHE E BORDINI
+    # =========================================================================
+
+    # 1. TESTATA SUPERIORE (Mese, Cognome, Nome, Codice)
     c.setLineWidth(0.5)
-    for idx, (r_type, r_label, y_top, y_bot) in enumerate(row_coords):
-        if idx == 0:
-            c.setLineWidth(1.0)
-            c.line(MARGIN_LEFT, y_top, MARGIN_RIGHT, y_top)
+    # Linea divisoria tra Mese e Giorni
+    c.line(MARGIN_LEFT, y_num_days, MARGIN_RIGHT, y_num_days)
+
+    # Separatori verticali della testata
+    x_h_cognome = MARGIN_LEFT + 105.0
+    x_h_nome = x_h_cognome + 240.0
+    x_h_codice = x_h_nome + 225.0
+
+    c.line(x_h_cognome, y_num_days, x_h_cognome, y_top_header)
+    c.line(x_h_nome, y_num_days, x_h_nome, y_top_header)
+    c.line(x_h_codice, y_num_days, x_h_codice, y_top_header)
+
+    c.setFont("Helvetica-Bold", 8.0)
+    c.drawString(MARGIN_LEFT + 4.0, y_top_header - 9.0, "Mese")
+    c.drawString(x_h_cognome + 6.0, y_top_header - 9.0, "Cognome")
+    c.drawString(x_h_nome + 6.0, y_top_header - 9.0, "Nome")
+    c.drawString(x_h_codice + 6.0, y_top_header - 9.0, "Codice")
+
+    # Mese selezionato scritto in maiuscolo
+    c.setFont("Helvetica-Bold", 10.5)
+    c.drawString(MARGIN_LEFT + 32.0, y_top_header - 14.5, MESI_MAIUSCOLO[month])
+
+    # 2. RIGA NUMERI GIORNO (SULLA STESSA RIGA DELL'ANNO!)
+    # Separatore tra Anno e Giorno 1
+    c.line(X_DAYS_START, y_weekday, X_DAYS_START, y_num_days)
+
+    # Scrittura dell'Anno nella casellina a sinistra
+    c.setFont("Helvetica-Bold", 10.0)
+    c.drawCentredString(MARGIN_LEFT + LABEL_COL_W / 2.0, y_num_days - 10.0, str(year))
+
+    # Linee orizzontali del blocco superiore
+    c.setLineWidth(0.5)
+    c.line(MARGIN_LEFT, y_weekday, MARGIN_RIGHT, y_weekday)  # sotto numeri giorni
+    c.line(MARGIN_LEFT, y_crew, MARGIN_RIGHT, y_crew)        # sotto giorno settimana
+    c.line(MARGIN_LEFT, y_dalle, MARGIN_RIGHT, y_dalle)      # sotto equipaggio
+    c.line(X_SUB_ORARIO, y_alle, MARGIN_RIGHT, y_alle)       # tra Dalle e Alle
+
+    # LINEA GRASSETTO: Sotto "Alle" (separa orari di servizio dalle voci straordinari/indennità)
+    c.setLineWidth(1.4)
+    c.line(MARGIN_LEFT, y_items_start, MARGIN_RIGHT, y_items_start)
+
+    # Testi etichette blocco orario a sinistra
+    c.setFont("Helvetica", 7.5)
+    c.drawString(MARGIN_LEFT + 4.0, y_weekday - 9.5, "giorno della settimana")
+    c.drawString(MARGIN_LEFT + 4.0, y_crew - 9.5, "Equipaggio")
+    
+    # "Orario di servizio" centrato verticalmente nel suo riquadro doppio
+    c.drawCentredString(MARGIN_LEFT + (X_SUB_ORARIO - MARGIN_LEFT) / 2.0, y_dalle - 14.0, "Orario di servizio")
+    c.line(X_SUB_ORARIO, y_dalle, X_SUB_ORARIO, y_items_start)
+    c.drawString(X_SUB_ORARIO + 6.0, y_dalle - 9.0, "Dalle")
+    c.drawString(X_SUB_ORARIO + 6.0, y_alle - 9.0, "Alle")
+
+    # Scrittura "Tot." sopra la colonna totale (a cavallo tra Dalle e Alle)
+    c.setFont("Helvetica-Bold", 8.0)
+    c.drawCentredString(X_TOTAL_START + TOTAL_COL_W / 2.0, y_dalle - 14.0, "Tot.")
+
+    # 3. LINEE ORIZZONTALI DELLE VOCI (1..17 E CAPI) CON I RISPETTIVI GRASSETTI
+    c.setLineWidth(0.5)
+    for code, num_str, qual_str, desc_str, y_t, y_b in item_rows_coords:
+        # Controllo linee marcate / in grassetto come da modulo ufficiale
+        if code == "STR_3":
+            # LINEA GRASSETTO: separa straordinari 1, 2, 3 dalle indennità 4..17
+            c.setLineWidth(1.4)
+            c.line(MARGIN_LEFT, y_b, MARGIN_RIGHT, y_b)
             c.setLineWidth(0.5)
-        
-        # Bordo inferiore riga
-        is_thick_line = r_type in ["ALLE", "VOCE_17", "CAPO_FIRMA"]
-        c.setLineWidth(0.9 if is_thick_line else 0.5)
-        c.line(MARGIN_LEFT, y_bot, MARGIN_RIGHT, y_bot)
+        elif code == "VOCE_17":
+            # LINEA GRASSETTO: separa le voci dai capi servizio
+            c.setLineWidth(1.4)
+            c.line(MARGIN_LEFT, y_b, MARGIN_RIGHT, y_b)
+            c.setLineWidth(0.5)
+        elif code == "CAPO_FIRMA":
+            # Bordo inferiore finale (tracciato poi dal bordo esterno)
+            pass
+        else:
+            c.setLineWidth(0.5)
+            c.line(MARGIN_LEFT, y_b, MARGIN_RIGHT, y_b)
 
-        # Scrittura label a sinistra
-        c.setFont("Helvetica", 6.8 if "Reperibilità" in r_label else 7.2)
-        y_text = y_bot + (y_top - y_bot) / 2.0 - 2.5
-        c.drawString(MARGIN_LEFT + 3.0, y_text, r_label)
+        # Scrittura testi etichette con sottocolonne allineate
+        y_text = y_b + (y_t - y_b) / 2.0 - 2.5
+        c.setFont("Helvetica-Bold", 7.2)
+        if num_str:
+            c.drawCentredString(MARGIN_LEFT + 7.0, y_text, num_str)
 
-    # Scrittura "Tot." sopra la colonna totale
-    y_top_tot = row_coords[4][2] # Riga Alle
-    c.setFont("Helvetica-Bold", 7.5)
-    c.drawCentredString(X_TOTAL + TOTAL_COL_W / 2.0, y_top_tot - 9.0, "Tot.")
+        c.setFont("Helvetica-Bold" if qual_str else "Helvetica", 7.0)
+        if qual_str:
+            c.drawString(X_SUB_NUM + 2.0, y_text, qual_str)
 
-    # Tracciamento linee verticali delle colonne
-    c.setLineWidth(1.0)
-    c.line(MARGIN_LEFT, grid_top, MARGIN_LEFT, grid_bot)
-    c.line(X_DAYS_START, grid_top, X_DAYS_START, grid_bot)
-    c.line(X_TOTAL, grid_top, X_TOTAL, grid_bot)
-    c.line(MARGIN_RIGHT, grid_top, MARGIN_RIGHT, grid_bot)
+        c.setFont("Helvetica", 6.8 if "Reperibilità" in desc_str else 7.2)
+        x_desc = X_SUB_QUAL + 2.0 if (num_str or qual_str) else MARGIN_LEFT + 4.0
+        c.drawString(x_desc, y_text, desc_str)
 
-    # Linee interne delle 31 colonne
+    # Tracciamento linee verticali sottocolonne a sinistra (solo per le righe delle voci 1..17)
+    c.setLineWidth(0.4)
+    y_voci_bot = item_rows_coords[16][5] # Fondo riga 17
+    c.line(X_SUB_NUM, y_items_start, X_SUB_NUM, y_voci_bot)
+    c.line(X_SUB_QUAL, y_items_start, X_SUB_QUAL, y_voci_bot)
+
+    # 4. LINEE VERTICALI DELLE COLONNE GIORNI
     c.setLineWidth(0.4)
     for day in range(1, 31):
-        x_col = X_DAYS_START + day * DAY_COL_W
-        c.line(x_col, grid_top, x_col, grid_bot)
+        x_c = X_DAYS_START + day * DAY_COL_W
+        c.line(x_c, y_num_days, x_c, Y_TABLE_BOTTOM)
 
-    # 3. POPOLAMENTO DATI DELLA TABELLA
+    # LINEE VERTICALI IN GRASSETTO
+    c.setLineWidth(1.4)
+    # Linea che separa etichette sinistra dai giorni
+    c.line(X_DAYS_START, y_num_days, X_DAYS_START, Y_TABLE_BOTTOM)
+    # Linea che separa i giorni dalla colonna Totale
+    c.line(X_TOTAL_START, y_num_days, X_TOTAL_START, Y_TABLE_BOTTOM)
+
+    # BORDO ESTERNO GENERALE IN GRASSETTO
+    c.setLineWidth(1.4)
+    c.rect(MARGIN_LEFT, Y_TABLE_BOTTOM, TABLE_W, Y_TABLE_TOP - Y_TABLE_BOTTOM, stroke=1, fill=0)
+
+    # =========================================================================
+    # POPOLAMENTO DEI DATI DEL TURNO
+    # =========================================================================
     days_dict = data["days"]
 
     for day in range(1, 32):
         d_info = days_dict[day]
         cx = get_cx(day)
 
+        # Se il giorno non esiste (es. 31 nei mesi da 30), traccia la barra diagonale
         if not d_info["exists"]:
-            # Traccia linea diagonale nera sui giorni non presenti
             c.setLineWidth(0.8)
             col_x1 = X_DAYS_START + (day - 1) * DAY_COL_W
             col_x2 = col_x1 + DAY_COL_W
-            c.line(col_x1, grid_top, col_x2, grid_bot)
+            c.line(col_x1, y_num_days, col_x2, Y_TABLE_BOTTOM)
             continue
 
-        for r_type, _, y_top, y_bot in row_coords:
-            y_mid = y_bot + (y_top - y_bot) / 2.0 - 2.5
+        # Numero del giorno (1..31)
+        c.setFont("Helvetica-Bold", 7.5)
+        c.drawCentredString(cx, y_num_days - 9.5, str(day))
 
-            if r_type == "NUMERI_GIORNO":
-                c.setFont("Helvetica-Bold", 7.5)
-                c.drawCentredString(cx, y_mid, str(day))
+        # Giorno della settimana (L, M, M, G, V, S, D)
+        c.setFont("Helvetica-Bold", 7.5)
+        c.drawCentredString(cx, y_weekday - 9.5, d_info["giorno_lett"])
 
-            elif r_type == "GIORNO_SETT":
-                c.setFont("Helvetica-Bold", 7.5)
-                c.drawCentredString(cx, y_mid, d_info["giorno_lett"])
-                if d_info["is_holiday"]:
-                    c.setLineWidth(0.6)
-                    c.ellipse(cx - 5.5, y_mid - 2.5, cx + 5.5, y_mid + 8.5)
+        # Ellisse sui festivi
+        if d_info["is_holiday"]:
+            c.setLineWidth(0.6)
+            c.ellipse(cx - 5.5, y_weekday - 12.0, cx + 5.5, y_weekday - 1.0)
 
-            elif r_type == "EQUIPAGGIO":
-                if d_info["is_riserva"]:
-                    c.setFont("Helvetica-Bold", 5.5)
-                    c.drawString(cx - 6.5, y_mid + 2.5, "R")
-                elif d_info["equipaggio"]:
-                    c.setFont("Helvetica-Bold", 7.5)
-                    c.drawCentredString(cx, y_mid, d_info["equipaggio"])
+        # Equipaggio
+        if d_info["is_riserva"]:
+            c.setFont("Helvetica-Bold", 5.5)
+            c.drawString(cx - 6.0, y_crew - 7.0, "R")
+        elif d_info["equipaggio"]:
+            c.setFont("Helvetica-Bold", 7.5)
+            c.drawCentredString(cx, y_crew - 9.5, d_info["equipaggio"])
 
-            elif r_type == "DALLE":
-                if d_info["dalle"]:
-                    c.setFont("Helvetica", 7.0)
-                    c.drawCentredString(cx, y_mid, d_info["dalle"])
+        # Orari Dalle / Alle
+        c.setFont("Helvetica", 7.0)
+        if d_info["dalle"]:
+            c.drawCentredString(cx, y_dalle - 9.0, d_info["dalle"])
+        if d_info["alle"]:
+            c.drawCentredString(cx, y_alle - 9.0, d_info["alle"])
 
-            elif r_type == "ALLE":
-                if d_info["alle"]:
-                    c.setFont("Helvetica", 7.0)
-                    c.drawCentredString(cx, y_mid, d_info["alle"])
+        # Competenze e Indennità
+        for code, _, _, _, y_t, y_b in item_rows_coords:
+            y_m = y_b + (y_t - y_b) / 2.0 - 2.5
+            if code == "VOCE_5" and d_info["notturna"]:
+                c.setFont("Helvetica", 7.5)
+                c.drawCentredString(cx, y_m, str(d_info["notturna"]))
+            elif code == "VOCE_6" and d_info["navigazione"]:
+                c.setFont("Helvetica", 7.5)
+                c.drawCentredString(cx, y_m, str(d_info["navigazione"]))
+            elif code == "VOCE_8" and d_info["festivo"]:
+                c.setFont("Helvetica", 7.5)
+                c.drawCentredString(cx, y_m, str(d_info["festivo"]))
+            elif code == "VOCE_15" and d_info["buoni_pasto"]:
+                c.setFont("Helvetica", 7.5)
+                c.drawCentredString(cx, y_m, str(d_info["buoni_pasto"]))
 
-            elif r_type == "VOCE_5":
-                if d_info["notturna"]:
-                    c.setFont("Helvetica", 7.5)
-                    c.drawCentredString(cx, y_mid, str(d_info["notturna"]))
-
-            elif r_type == "VOCE_6":
-                if d_info["navigazione"]:
-                    c.setFont("Helvetica", 7.5)
-                    c.drawCentredString(cx, y_mid, str(d_info["navigazione"]))
-
-            elif r_type == "VOCE_8":
-                if d_info["festivo"]:
-                    c.setFont("Helvetica", 7.5)
-                    c.drawCentredString(cx, y_mid, str(d_info["festivo"]))
-
-            elif r_type == "VOCE_15":
-                if d_info["buoni_pasto"]:
-                    c.setFont("Helvetica", 7.5)
-                    c.drawCentredString(cx, y_mid, str(d_info["buoni_pasto"]))
-
-    # 4. TOTALI COLONNA A DESTRA
-    cx_tot = X_TOTAL + TOTAL_COL_W / 2.0
+    # Totali colonna destra
+    cx_tot = X_TOTAL_START + TOTAL_COL_W / 2.0
     c.setFont("Helvetica-Bold", 7.5)
-    for r_type, _, y_top, y_bot in row_coords:
-        y_mid = y_bot + (y_top - y_bot) / 2.0 - 2.5
-        if r_type == "VOCE_5" and data["tot_notturna"] > 0:
-            c.drawCentredString(cx_tot, y_mid, str(data["tot_notturna"]))
-        elif r_type == "VOCE_6" and data["tot_navigazione"] > 0:
-            c.drawCentredString(cx_tot, y_mid, str(data["tot_navigazione"]))
-        elif r_type == "VOCE_8" and data["tot_festivo"] > 0:
-            c.drawCentredString(cx_tot, y_mid, str(data["tot_festivo"]))
-        elif r_type == "VOCE_15" and data["tot_buoni_pasto"] > 0:
-            c.drawCentredString(cx_tot, y_mid, str(data["tot_buoni_pasto"]))
+    for code, _, _, _, y_t, y_b in item_rows_coords:
+        y_m = y_b + (y_t - y_b) / 2.0 - 2.5
+        if code == "VOCE_5" and data["tot_notturna"] > 0:
+            c.drawCentredString(cx_tot, y_m, str(data["tot_notturna"]))
+        elif code == "VOCE_6" and data["tot_navigazione"] > 0:
+            c.drawCentredString(cx_tot, y_m, str(data["tot_navigazione"]))
+        elif code == "VOCE_8" and data["tot_festivo"] > 0:
+            c.drawCentredString(cx_tot, y_m, str(data["tot_festivo"]))
+        elif code == "VOCE_15" and data["tot_buoni_pasto"] > 0:
+            c.drawCentredString(cx_tot, y_m, str(data["tot_buoni_pasto"]))
 
-    # 5. TABELLA RIEPILOGO FERIE E COMPENSATIVI (In basso a sinistra)
-    Y_SUMMARY_TOP = grid_bot - 8.0
-    SUMMARY_W = 420.0
-    c.setLineWidth(0.6)
-    c.rect(MARGIN_LEFT, Y_SUMMARY_TOP - 36.0, SUMMARY_W, 36.0, stroke=1, fill=0)
+    # =========================================================================
+    # TABELLA RIEPILOGO FERIE E COMPENSATIVI (IN BASSO A SINISTRA)
+    # =========================================================================
+    Y_SUMMARY_TOP = Y_TABLE_BOTTOM - 6.0
+    SUMMARY_W = 440.0
+    SUMMARY_H = 36.0
 
-    # Righe riepilogo
+    c.setLineWidth(1.0)
+    c.rect(MARGIN_LEFT, Y_SUMMARY_TOP - SUMMARY_H, SUMMARY_W, SUMMARY_H, stroke=1, fill=0)
+
+    # Linee orizzontali interne
+    c.setLineWidth(0.5)
     c.line(MARGIN_LEFT, Y_SUMMARY_TOP - 12.0, MARGIN_LEFT + SUMMARY_W, Y_SUMMARY_TOP - 12.0)
     c.line(MARGIN_LEFT, Y_SUMMARY_TOP - 24.0, MARGIN_LEFT + SUMMARY_W, Y_SUMMARY_TOP - 24.0)
 
-    # Colonne riepilogo: Etichetta (100pt), Inizio mese (80pt), Fruito (80pt), Maturato (80pt), Fine mese (80pt)
-    c.line(MARGIN_LEFT + 100.0, Y_SUMMARY_TOP, MARGIN_LEFT + 100.0, Y_SUMMARY_TOP - 36.0)
-    c.line(MARGIN_LEFT + 180.0, Y_SUMMARY_TOP, MARGIN_LEFT + 180.0, Y_SUMMARY_TOP - 36.0)
-    c.line(MARGIN_LEFT + 260.0, Y_SUMMARY_TOP, MARGIN_LEFT + 260.0, Y_SUMMARY_TOP - 36.0)
-    c.line(MARGIN_LEFT + 340.0, Y_SUMMARY_TOP, MARGIN_LEFT + 340.0, Y_SUMMARY_TOP - 36.0)
+    # Linee verticali divisorie colonne
+    col_splits = [110.0, 192.5, 275.0, 357.5]
+    for split_x in col_splits:
+        c.line(MARGIN_LEFT + split_x, Y_SUMMARY_TOP, MARGIN_LEFT + split_x, Y_SUMMARY_TOP - SUMMARY_H)
 
     c.setFont("Helvetica-Bold", 7.0)
-    c.drawCentredString(MARGIN_LEFT + 140.0, Y_SUMMARY_TOP - 9.0, "Saldo inizio mese")
-    c.drawCentredString(MARGIN_LEFT + 220.0, Y_SUMMARY_TOP - 9.0, "Fruito")
-    c.drawCentredString(MARGIN_LEFT + 300.0, Y_SUMMARY_TOP - 9.0, "Maturato")
-    c.drawCentredString(MARGIN_LEFT + 380.0, Y_SUMMARY_TOP - 9.0, "Saldo fine mese")
+    c.drawCentredString(MARGIN_LEFT + 151.0, Y_SUMMARY_TOP - 9.0, "Saldo inizio mese")
+    c.drawCentredString(MARGIN_LEFT + 233.5, Y_SUMMARY_TOP - 9.0, "Fruito")
+    c.drawCentredString(MARGIN_LEFT + 316.0, Y_SUMMARY_TOP - 9.0, "Maturato")
+    c.drawCentredString(MARGIN_LEFT + 398.5, Y_SUMMARY_TOP - 9.0, "Saldo fine mese")
 
     c.setFont("Helvetica", 7.5)
     c.drawString(MARGIN_LEFT + 6.0, Y_SUMMARY_TOP - 21.0, "Ferie")
@@ -369,7 +448,6 @@ def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> by
     ws = wb.active
     ws.title = f"Presenze Eq {crew_num}"
 
-    # Stili
     font_bold = Font(name="Calibri", size=9, bold=True)
     font_regular = Font(name="Calibri", size=9)
     font_title = Font(name="Calibri", size=11, bold=True)
@@ -377,10 +455,10 @@ def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> by
     align_left = Alignment(horizontal="left", vertical="center")
 
     thin_border_side = Side(border_style="thin", color="000000")
-    double_border_side = Side(border_style="medium", color="000000")
+    medium_border_side = Side(border_style="medium", color="000000")
     cell_border = Border(top=thin_border_side, bottom=thin_border_side, left=thin_border_side, right=thin_border_side)
 
-    # 1. Testata (Righe 1 e 2)
+    # Testata
     ws.merge_cells("A1:D1")
     ws["A1"] = "Mese"
     ws["A1"].font = font_bold
@@ -405,7 +483,7 @@ def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> by
     ws["AB1"] = "Codice"
     ws["AB1"].font = font_bold
 
-    # Riga 2 (Numeri da 1 a 31)
+    # Riga 2 (Numeri 1..31)
     for day in range(1, 32):
         col_letter = openpyxl.utils.get_column_letter(4 + day)
         cell = ws[f"{col_letter}2"]
@@ -414,7 +492,6 @@ def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> by
         cell.alignment = align_center
         cell.border = cell_border
 
-    # 2. Voci Righe
     row_labels = [
         (3, "giorno della settimana"),
         (4, "Equipaggio"),
@@ -451,11 +528,9 @@ def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> by
         for c_i in range(1, 5):
             ws.cell(row=r_idx, column=c_i).border = cell_border
 
-    # Intestazione Totale in Colonna AJ (36)
     ws.cell(row=6, column=36, value="Tot.").font = font_bold
     ws.cell(row=6, column=36).alignment = align_center
 
-    # 3. Inserimento dati delle 31 giornate
     days_dict = data["days"]
     for day in range(1, 32):
         col_idx = 4 + day
@@ -489,7 +564,6 @@ def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> by
             elif r_idx == 21:
                 cell.value = d_info["buoni_pasto"]
 
-    # 4. Totali nella colonna 36 (AJ)
     tot_map = {
         11: data["tot_notturna"],
         12: data["tot_navigazione"],
@@ -505,7 +579,6 @@ def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> by
         if r_idx in tot_map and tot_map[r_idx] > 0:
             cell_tot.value = tot_map[r_idx]
 
-    # Dimensionamento colonne
     ws.column_dimensions["A"].width = 12
     ws.column_dimensions["B"].width = 6
     ws.column_dimensions["C"].width = 6
