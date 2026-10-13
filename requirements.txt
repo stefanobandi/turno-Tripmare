@@ -2,3 +2,4 @@ streamlit
 reportlab
 pypdf
 openpyxl
+firebase-admin
