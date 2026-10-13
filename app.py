@@ -12,7 +12,7 @@ from engine import (
     ANCHOR_DATE
 )
 from faq import render_documentation_section, render_faq_section
-from timesheet import generate_monthly_timesheet_pdf, find_template_path
+from timesheet import generate_monthly_timesheet_pdf, generate_monthly_timesheet_excel
 
 st.set_page_config(page_title="Proiezione turno Tripmare", layout="wide")
 
@@ -322,16 +322,17 @@ if validation_report["is_valid"]:
 
 # Sezione Esportazioni per Equipaggio Specifico
 if view_type == "Equipaggio Specifico":
-    st.write("")
-    
-    col_export_1, col_export_2 = st.columns(2)
+    st.write("---")
+    st.markdown("### 📥 Esportazione e Sincronizzazione (Equipaggio Specifico)")
 
-    with col_export_1:
-        st.markdown("##### 📅 Sincronizzazione Smartphone")
+    col_exp_1, col_exp_2 = st.columns(2)
+
+    with col_exp_1:
+        st.markdown("##### 📅 Sincronizzazione Smartphone (.ics)")
         ics_data = generate_ics_calendar(selected_crew, dates_to_show)
         file_suffix = f"{dates_to_show[0].strftime('%Y_%m')}" if time_horizon == "Mese Completo" else f"{dates_to_show[0].strftime('%Y_%m_%d')}"
         ics_filename = f"turno_tripmare_eq{selected_crew}_{file_suffix}.ics"
-        
+
         st.download_button(
             label=f"Scarica Calendario (.ics) - Eq. {selected_crew}",
             data=ics_data,
@@ -339,28 +340,45 @@ if view_type == "Equipaggio Specifico":
             mime="text/calendar",
             use_container_width=True
         )
-        st.caption("Consiglio: importalo come calendario secondario per accenderlo/spegnerlo o cancellarlo con un clic.")
+        st.caption("Consiglio: importalo come calendario secondario su Google Calendar / Apple Calendar per accenderlo o spegnerlo a piacere.")
 
-    with col_export_2:
-        st.markdown("##### 📄 Foglio Presenze Aziendale (Work in progress)")
-        template_file = find_template_path()
-        if template_file:
-            try:
-                timesheet_pdf_data = generate_monthly_timesheet_pdf(curr.year, curr.month, selected_crew)
-                pdf_filename = f"presenze_tripmare_eq{selected_crew}_{curr.year}_{curr.month:02d}.pdf"
+    with col_exp_2:
+        st.markdown("##### 📄 Foglio Presenze Mensile (Work in progress)")
+        st.info("⚠️ **Modulo in fase di sviluppo**: il layout grafico è in fase di perfezionamento e non è da considerarsi definitivo.")
+
+        btn_c1, btn_c2 = st.columns(2)
+
+        try:
+            pdf_data = generate_monthly_timesheet_pdf(curr.year, curr.month, selected_crew)
+            pdf_name = f"presenze_tripmare_eq{selected_crew}_{curr.year}_{curr.month:02d}.pdf"
+            with btn_c1:
                 st.download_button(
-                    label=f"Scarica Modulo PDF - Eq. {selected_crew} ({MESI_ITALIANO[curr.month]} {curr.year})",
-                    data=timesheet_pdf_data,
-                    file_name=pdf_filename,
+                    label="📄 Scarica PDF (A4 Stampa)",
+                    data=pdf_data,
+                    file_name=pdf_name,
                     mime="application/pdf",
                     use_container_width=True
                 )
-                st.caption("Modulo precompilato pronto per la stampa in B/N con indennità, maggiorazioni, festivi e buoni pasto.")
-            except Exception as e:
-                st.error(f"Errore durante la compilazione del PDF: {e}")
-        else:
-            st.button("Scarica Modulo PDF (Template non trovato)", disabled=True, use_container_width=True, help="Carica il file 'straordinario ed extra tripmare.pdf' nel repository.")
-            st.caption("Carica il file 'straordinario ed extra tripmare.pdf' nel repository per attivare la stampa.")
+        except Exception as e:
+            with btn_c1:
+                st.error(f"Errore generazione PDF: {e}")
+
+        try:
+            excel_data = generate_monthly_timesheet_excel(curr.year, curr.month, selected_crew)
+            excel_name = f"presenze_tripmare_eq{selected_crew}_{curr.year}_{curr.month:02d}.xlsx"
+            with btn_c2:
+                st.download_button(
+                    label="📊 Scarica Excel (.xlsx)",
+                    data=excel_data,
+                    file_name=excel_name,
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+        except Exception as e:
+            with btn_c2:
+                st.error(f"Errore generazione Excel: {e}")
+
+        st.caption("Modulo precompilato (PDF vettoriale o foglio Excel modificabile) con turni solari, indennità e maggiorazioni.")
 
 # Box Legenda
 st.markdown("""
