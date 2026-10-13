@@ -29,7 +29,10 @@ if os.path.exists("style.css"):
 
 query_params = st.query_params
 debug_mode = query_params.get("debug", "").lower() in ["true", "1", "yes"]
-stats_mode = query_params.get("stats", "").lower() in ["true", "1", "yes"]
+
+# Controllo chiave segreta per l'accesso riservato alla dashboard statistiche
+url_key = query_params.get("key", "")
+stats_mode = url_key in ["aksgw8e574", "aksgw8e574%$", "aksgw8e574%25$"]
 
 MESI_ITALIANO = [
     "", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
@@ -42,7 +45,7 @@ MESI_BREVI_ITALIANO = [
 ]
 
 # =========================================================================
-# DASHBOARD STATISTICHE RISERVATA (Attiva con ?stats=true nell'URL)
+# DASHBOARD STATISTICHE RISERVATA (Attiva solo con ?key=aksgw8e574)
 # =========================================================================
 if stats_mode:
     with st.expander("📊 DASHBOARD STATISTICHE E DOWNLOAD (Firestore)", expanded=True):
