@@ -2,6 +2,7 @@ import streamlit as st
 import datetime
 import calendar
 import os
+import pandas as pd
 from engine import (
     get_week_index,
     get_shift_for_crew,
@@ -14,7 +15,7 @@ from engine import (
 from faq import render_documentation_section, render_faq_section
 from timesheet import generate_monthly_timesheet_pdf, generate_monthly_timesheet_excel
 from schedule_pdf import generate_schedule_bn_pdf
-from tracker import log_page_view, log_download
+from tracker import log_page_view, log_download, get_analytics_summary
 
 st.set_page_config(page_title="Proiezione turno Tripmare", layout="wide")
 
@@ -28,6 +29,7 @@ if os.path.exists("style.css"):
 
 query_params = st.query_params
 debug_mode = query_params.get("debug", "").lower() in ["true", "1", "yes"]
+stats_mode = query_params.get("stats", "").lower() in ["true", "1", "yes"]
 
 MESI_ITALIANO = [
     "", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
@@ -38,6 +40,61 @@ MESI_BREVI_ITALIANO = [
     "", "gen", "feb", "mar", "apr", "mag", "giu",
     "lug", "ago", "set", "ott", "nov", "dic"
 ]
+
+# =========================================================================
+# DASHBOARD STATISTICHE RISERVATA (Attiva con ?stats=true nell'URL)
+# =========================================================================
+if stats_mode:
+    with st.expander("📊 DASHBOARD STATISTICHE E DOWNLOAD (Firestore)", expanded=True):
+        summary = get_analytics_summary()
+        if not summary.get("connected", False):
+            st.error(f"Impossibile collegarsi a Firebase Firestore: {summary.get('error', 'Credenziali non trovate')}")
+        else:
+            col_s1, col_s2, col_s3 = st.columns(3)
+            col_s1.metric("Visite Totali Registrate", summary.get("tot_visite", 0))
+            col_s2.metric("Download Eseguiti", summary.get("tot_download", 0))
+
+            recenti = summary.get("recent_events", [])
+            last_date = recenti[0]["Data/Ora (UTC)"] if recenti else "Nessuna attività"
+            col_s3.metric("Ultima Attività", last_date)
+
+            st.write("---")
+            c_tipi, c_crew = st.columns(2)
+
+            with c_tipi:
+                st.markdown("##### 📁 Ripartizione Download per File")
+                tipi = summary.get("tipi_download", {})
+                if tipi:
+                    label_map = {
+                        "pdf_presenze": "Foglio Presenze (PDF)",
+                        "excel_presenze": "Foglio Presenze (Excel)",
+                        "calendario_ics": "Calendario (.ics)",
+                        "pdf_turno_bn": "Turno Stampa (PDF B/N)"
+                    }
+                    df_tipi = pd.DataFrame([
+                        {"Tipo File": label_map.get(k, k), "Download": v}
+                        for k, v in tipi.items()
+                    ])
+                    st.dataframe(df_tipi, use_container_width=True, hide_index=True)
+                else:
+                    st.info("Nessun download ancora registrato.")
+
+            with c_crew:
+                st.markdown("##### ⚓ Equipaggi più Attivi")
+                crews_st = summary.get("crews_stats", {})
+                if crews_st:
+                    df_crews = pd.DataFrame([
+                        {"Equipaggio": k, "Conteggio": v}
+                        for k, v in sorted(crews_st.items(), key=lambda x: x[1], reverse=True)
+                    ])
+                    st.dataframe(df_crews, use_container_width=True, hide_index=True)
+                else:
+                    st.info("Nessun dato per equipaggio disponibile.")
+
+            if recenti:
+                st.write("---")
+                st.markdown("##### ⏱️ Ultimi 20 Eventi Registrati")
+                st.dataframe(pd.DataFrame(recenti), use_container_width=True, hide_index=True)
 
 def build_cell_tooltip(crew_num: int, target_date: datetime.date, mezzo: int, stato: str) -> str:
     mese_abbr = MESI_BREVI_ITALIANO[target_date.month]
