@@ -114,7 +114,7 @@ def get_month_crew_data(year: int, month: int, crew_num: int) -> dict:
 def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> bytes:
     """
     Genera il foglio presenze mensile in PDF vettoriale A4 Landscape nativo (842 x 595 pt),
-    con fedeltà geometrica al modulo originale Tripmare.
+    con colonna dei totali lasciata in bianco per compilazione a fine mese.
     """
     PAGE_W = 841.89
     PAGE_H = 595.28
@@ -155,7 +155,7 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
     H_ROW_ALLE = 12.0       # Alle
     H_ROW_ITEM = 12.0       # Righe voci 1..17
     H_ROW_CAPO_COG = 14.0   # Cognome del Capo Servizio
-    H_ROW_CAPO_FIRMA = 85.0 # Modifica 1: Firma del Capo Servizio più che raddoppiata (85 pt)
+    H_ROW_CAPO_FIRMA = 85.0 # Firma del Capo Servizio
 
     items_def = [
         ("STR_1", "1", "Diu. Feriale"),
@@ -391,19 +391,7 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
                 c.setFont("Helvetica", 7.5)
                 c.drawCentredString(cx, y_m, str(d_info["buoni_pasto"]))
 
-    # Totali colonna destra
-    cx_tot = X_TOTAL_START + TOTAL_COL_W / 2.0
-    c.setFont("Helvetica-Bold", 7.5)
-    for code, _, _, y_t, y_b in item_rows_coords:
-        y_m = y_b + (y_t - y_b) / 2.0 - 2.5
-        if code == "VOCE_5" and data["tot_notturna"] > 0:
-            c.drawCentredString(cx_tot, y_m, str(data["tot_notturna"]))
-        elif code == "VOCE_6" and data["tot_navigazione"] > 0:
-            c.drawCentredString(cx_tot, y_m, str(data["tot_navigazione"]))
-        elif code == "VOCE_8" and data["tot_festivo"] > 0:
-            c.drawCentredString(cx_tot, y_m, str(data["tot_festivo"]))
-        elif code == "VOCE_15" and data["tot_buoni_pasto"] > 0:
-            c.drawCentredString(cx_tot, y_m, str(data["tot_buoni_pasto"]))
+    # Colonna a destra Totale lasciata completamente IN BIANCO per la compilazione manuale
 
     # =========================================================================
     # 7. TABELLA RIEPILOGO FERIE E COMPENSATIVI (A TUTTA LARGHEZZA)
@@ -445,7 +433,7 @@ def generate_monthly_timesheet_pdf(year: int, month: int, crew_num: int) -> byte
 def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> bytes:
     """
     Genera il file Excel (.xlsx) nativo basato sulla struttura del foglio presenze Tripmare,
-    perfettamente allineato al PDF con bordi marcati e colonna totali corretta.
+    con formule =SOMMA(...) nella colonna totali per consentire il ricalcolo automatico.
     """
     data = get_month_crew_data(year, month, crew_num)
     wb = openpyxl.Workbook()
@@ -466,7 +454,7 @@ def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> by
     thin_s = Side(border_style="thin", color="000000")
     medium_s = Side(border_style="medium", color="000000")
 
-    # Inizializzazione bordi di base sottili per tutte le celle dell'area attiva
+    # Bordi di base sottili
     for r in range(1, 26):
         for c in range(1, 37):
             ws.cell(row=r, column=c).border = Border(top=thin_s, bottom=thin_s, left=thin_s, right=thin_s)
@@ -536,7 +524,7 @@ def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> by
     ws["D6"].font = font_regular_sm
     ws["D6"].alignment = align_center
 
-    # Modifica 3: Merge pulito di "Tot." sulle righe 5 e 6 in colonna AJ (36)
+    # Merge Tot. sulle righe 5 e 6 in colonna AJ (36)
     ws.merge_cells("AJ5:AJ6")
     ws["AJ5"] = "Tot."
     ws["AJ5"].font = font_bold_sm
@@ -642,73 +630,58 @@ def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> by
                 cell.value = d_info["buoni_pasto"]
                 cell.font = font_regular_sm
 
-    # Totali colonna 36 (AJ) per le voci di riga (solo per le voci previste)
-    tot_map = {
-        11: data["tot_notturna"],
-        12: data["tot_navigazione"],
-        14: data["tot_festivo"],
-        21: data["tot_buoni_pasto"]
-    }
-
+    # Formula dinamica SOMMA per ciascuna riga delle voci (da riga 7 a 23) in colonna 36 (AJ)
     for r_idx in range(7, 24):
         cell_tot = ws.cell(row=r_idx, column=36)
+        cell_tot.value = f"=SUM(E{r_idx}:AI{r_idx})"
         cell_tot.alignment = align_center
         cell_tot.font = font_bold_sm
-        if r_idx in tot_map and tot_map[r_idx] > 0:
-            cell_tot.value = tot_map[r_idx]
 
     # =========================================================================
-    # 5. MODIFICA 2: APPLICAZIONE DEI BORDI MARCATI (MEDIUM) IN EXCEL
+    # 5. APPLICAZIONE DEI BORDI MARCATI (MEDIUM) IN EXCEL
     # =========================================================================
-    # 1. Bordo inferiore marcato sotto la testata (Riga 1)
     for c in range(1, 37):
         curr_b = ws.cell(row=1, column=c).border
         ws.cell(row=1, column=c).border = Border(top=curr_b.top, bottom=medium_s, left=curr_b.left, right=curr_b.right)
         curr_next = ws.cell(row=2, column=c).border
         ws.cell(row=2, column=c).border = Border(top=medium_s, bottom=curr_next.bottom, left=curr_next.left, right=curr_next.right)
 
-    # 2. Bordo inferiore marcato sotto Equipaggio (Riga 4)
     for c in range(1, 37):
         curr_b = ws.cell(row=4, column=c).border
         ws.cell(row=4, column=c).border = Border(top=curr_b.top, bottom=medium_s, left=curr_b.left, right=curr_b.right)
         curr_next = ws.cell(row=5, column=c).border
         ws.cell(row=5, column=c).border = Border(top=medium_s, bottom=curr_next.bottom, left=curr_next.left, right=curr_next.right)
 
-    # 3. Bordo inferiore marcato sotto Alle (Riga 6)
     for c in range(1, 37):
         curr_b = ws.cell(row=6, column=c).border
         ws.cell(row=6, column=c).border = Border(top=curr_b.top, bottom=medium_s, left=curr_b.left, right=curr_b.right)
         curr_next = ws.cell(row=7, column=c).border
         ws.cell(row=7, column=c).border = Border(top=medium_s, bottom=curr_next.bottom, left=curr_next.left, right=curr_next.right)
 
-    # 4. Bordo inferiore marcato sotto Voce 17 (Riga 23)
     for c in range(1, 37):
         curr_b = ws.cell(row=23, column=c).border
         ws.cell(row=23, column=c).border = Border(top=curr_b.top, bottom=medium_s, left=curr_b.left, right=curr_b.right)
         curr_next = ws.cell(row=24, column=c).border
         ws.cell(row=24, column=c).border = Border(top=medium_s, bottom=curr_next.bottom, left=curr_next.left, right=curr_next.right)
 
-    # 5. Bordo inferiore marcato sotto Firma del Capo Servizio (Riga 25)
     for c in range(1, 37):
         curr_b = ws.cell(row=25, column=c).border
         ws.cell(row=25, column=c).border = Border(top=curr_b.top, bottom=medium_s, left=curr_b.left, right=curr_b.right)
 
-    # 6. Bordi verticali marcati:
-    # Tra colonna 4 (etichette) e colonna 5 (giorno 1) da riga 2 a 25
+    # Bordi verticali marcati
     for r in range(2, 26):
         cb4 = ws.cell(row=r, column=4).border
         ws.cell(row=r, column=4).border = Border(top=cb4.top, bottom=cb4.bottom, left=cb4.left, right=medium_s)
         cb5 = ws.cell(row=r, column=5).border
         ws.cell(row=r, column=5).border = Border(top=cb5.top, bottom=cb5.bottom, left=medium_s, right=cb5.right)
 
-    # Tra colonna 35 (giorno 31) e colonna 36 (Totale) da riga 2 a 25
     for r in range(2, 26):
         cb35 = ws.cell(row=r, column=35).border
         ws.cell(row=r, column=35).border = Border(top=cb35.top, bottom=cb35.bottom, left=cb35.left, right=medium_s)
         cb36 = ws.cell(row=r, column=36).border
         ws.cell(row=r, column=36).border = Border(top=cb36.top, bottom=cb36.bottom, left=medium_s, right=cb36.right)
 
-    # Perimetro esterno marcato (Righe 1..25, Colonne 1..36)
+    # Perimetro esterno marcato
     for c in range(1, 37):
         cb1 = ws.cell(row=1, column=c).border
         ws.cell(row=1, column=c).border = Border(top=medium_s, bottom=cb1.bottom, left=cb1.left, right=cb1.right)
@@ -777,7 +750,7 @@ def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> by
         cbl = ws.cell(row=r, column=1).border
         ws.cell(row=r, column=1).border = Border(top=cbl.top, bottom=cbl.bottom, left=medium_s, right=cbl.right)
         cbr = ws.cell(row=r, column=36).border
-        ws.cell(row=r, column=36).border = Border(top=cbr.top, bottom=cbr.bottom, left=cbr.left, right=medium_s)
+        ws.cell(row=r, column=36).border = Border(top=cbr.top, bottom=cbr.bottom, left=medium_s, right=cbr.right)
 
     # =========================================================================
     # 7. DIMENSIONAMENTO COLONNE E ALTEZZE RIGHE
@@ -802,8 +775,8 @@ def generate_monthly_timesheet_excel(year: int, month: int, crew_num: int) -> by
     for r in range(7, 24):
         ws.row_dimensions[r].height = 14
     ws.row_dimensions[24].height = 16
-    ws.row_dimensions[25].height = 100  # Modifica 1: Riga alta 100 per la firma autografa!
-    ws.row_dimensions[26].height = 8    # Spaziatore
+    ws.row_dimensions[25].height = 100
+    ws.row_dimensions[26].height = 8
     ws.row_dimensions[27].height = 15
     ws.row_dimensions[28].height = 16
     ws.row_dimensions[29].height = 16
