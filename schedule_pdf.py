@@ -20,17 +20,17 @@ def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color
         pagesize=landscape(A4),
         rightMargin=1*cm,
         leftMargin=1*cm,
-        topMargin=1*cm,
-        bottomMargin=1*cm
+        topMargin=0.5*cm,
+        bottomMargin=0.5*cm
     )
     elements = []
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
         'CustomTitle',
         parent=styles['Heading1'],
-        fontSize=14,
+        fontSize=12,
         alignment=1,
-        spaceAfter=12
+        spaceAfter=6
     )
 
     elements.append(Paragraph(title_pdf, title_style))
@@ -69,47 +69,45 @@ def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color
 
     # Impostazione layout base tabella
     num_cols = len(dates_to_show) + 1
-    # La prima colonna (Eq.) è più larga, le altre calcolate equamente
     avail_width = landscape(A4)[0] - 2*cm
-    col_w = (avail_width - 2.5*cm) / (num_cols - 1)
-    col_widths = [2.5*cm] + [col_w] * (num_cols - 1)
+    col_w = (avail_width - 2.0*cm) / (num_cols - 1)
+    col_widths = [2.0*cm] + [col_w] * (num_cols - 1)
 
     t = Table(data, colWidths=col_widths, repeatRows=2)
 
-    # Stile base tabella (B/N o Colori condizionato per celle specifiche)
+    # Stile ultra-compatto per forzare la tabella su una sola pagina
     base_style = [
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('GRID', (0,0), (-1,-1), 0.5, colors.black),
         ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
-        ('FONTSIZE', (0,0), (-1,-1), 8),
+        ('FONTSIZE', (0,0), (-1,-1), 7.5),
+        ('TOPPADDING', (0,0), (-1,-1), 1),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 1),
         ('FONTNAME', (0,0), (-1,1), 'Helvetica-Bold'),
         ('BACKGROUND', (0,0), (-1,1), colors.lightgrey if not is_color else colors.whitesmoke),
         ('BACKGROUND', (0,0), (0,-1), colors.lightgrey if not is_color else colors.whitesmoke),
     ]
 
-    # Applichiamo gli stili condizionali (Festivi, Riposi)
+    # Applichiamo gli stili condizionali
     today_date = datetime.date.today()
     for col_idx, d in enumerate(dates_to_show):
         c = col_idx + 1
         is_hol, is_semi, _ = get_holiday_type(d)
         is_today = (d == today_date)
 
-        # Intestazione Colonne
         if is_color:
             if is_hol:
-                base_style.append(('BACKGROUND', (c, 0), (c, 1), colors.HexColor("#fecaca"))) # Rosso chiaro
+                base_style.append(('BACKGROUND', (c, 0), (c, 1), colors.HexColor("#fecaca"))) 
             elif is_semi:
-                base_style.append(('BACKGROUND', (c, 0), (c, 1), colors.HexColor("#fed7aa"))) # Arancione/Salmone chiaro
+                base_style.append(('BACKGROUND', (c, 0), (c, 1), colors.HexColor("#fed7aa"))) 
         else:
             if is_hol or is_semi:
-                # Nel B/N usiamo un tratto più spesso per la testata
                 base_style.append(('BOX', (c, 0), (c, 1), 1.5, colors.black))
         
         if is_today:
              base_style.append(('BOX', (c, 0), (c, -1), 1.5, colors.blue if is_color else colors.black))
 
-        # Celle Dati
         for row_idx, c_num in enumerate(crews_to_render):
             r = row_idx + 2
             shift = get_shift_for_crew(c_num, d)
@@ -117,16 +115,13 @@ def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color
 
             if is_color:
                 if stato == "L":
-                    base_style.append(('BACKGROUND', (c, r), (c, r), colors.HexColor("#dcfce7"))) # Verde L
+                    base_style.append(('BACKGROUND', (c, r), (c, r), colors.HexColor("#dcfce7"))) 
                 elif stato in ["L1", "L2", "L3"]:
-                    base_style.append(('BACKGROUND', (c, r), (c, r), colors.HexColor("#fef9c3"))) # Giallo L disp
+                    base_style.append(('BACKGROUND', (c, r), (c, r), colors.HexColor("#fef9c3"))) 
                 elif stato.startswith("R"):
-                    base_style.append(('BACKGROUND', (c, r), (c, r), colors.HexColor("#e2e8f0"))) # Grigio R
+                    base_style.append(('BACKGROUND', (c, r), (c, r), colors.HexColor("#e2e8f0"))) 
                 else:
-                    base_style.append(('BACKGROUND', (c, r), (c, r), colors.white)) # Lavoro bianco
-            else:
-                # Se è B/N non impostiamo sfondi per risparmiare inchiostro, il nero standard basta
-                pass
+                    base_style.append(('BACKGROUND', (c, r), (c, r), colors.white)) 
 
     t.setStyle(TableStyle(base_style))
     elements.append(t)
@@ -136,10 +131,11 @@ def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color
     buffer.close()
     return pdf_bytes
 
+
 def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: bool = False):
     """
     Genera un PDF di 12 pagine (da Gennaio a Dicembre) per l'anno specificato.
-    Ciascuna pagina formatta un singolo mese, esattamente come la schermata Mese Completo.
+    Ciascuna pagina formatta un singolo mese, forzato su una pagina singola.
     """
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -147,17 +143,17 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
         pagesize=landscape(A4),
         rightMargin=1*cm,
         leftMargin=1*cm,
-        topMargin=1*cm,
-        bottomMargin=1*cm
+        topMargin=0.5*cm,
+        bottomMargin=0.5*cm
     )
     elements = []
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
         'CustomTitle',
         parent=styles['Heading1'],
-        fontSize=14,
+        fontSize=12,
         alignment=1,
-        spaceAfter=12
+        spaceAfter=6
     )
     
     mesi_italiano = [
@@ -175,19 +171,16 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
         dates_to_show = [datetime.date(year, month, day) for day in range(1, num_days + 1)]
         
         data = []
-        # RIGA 1: Numeri del giorno
         row_days = ["Eq."]
         for d in dates_to_show:
             row_days.append(d.strftime("%d"))
         data.append(row_days)
 
-        # RIGA 2: Nomi dei giorni
         row_day_names = [""]
         for d in dates_to_show:
             row_day_names.append(day_names_it[d.weekday()])
         data.append(row_day_names)
 
-        # RIGHE EQUIPAGGI
         for c_num in crews_to_render:
             label = f"Eq. {c_num} 🎱" if c_num == 8 else f"Eq. {c_num}"
             row = [label]
@@ -205,8 +198,8 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
 
         num_cols = len(dates_to_show) + 1
         avail_width = landscape(A4)[0] - 2*cm
-        col_w = (avail_width - 2.5*cm) / (num_cols - 1)
-        col_widths = [2.5*cm] + [col_w] * (num_cols - 1)
+        col_w = (avail_width - 2.0*cm) / (num_cols - 1)
+        col_widths = [2.0*cm] + [col_w] * (num_cols - 1)
 
         t = Table(data, colWidths=col_widths, repeatRows=2)
 
@@ -215,7 +208,9 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ('GRID', (0,0), (-1,-1), 0.5, colors.black),
             ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
-            ('FONTSIZE', (0,0), (-1,-1), 8),
+            ('FONTSIZE', (0,0), (-1,-1), 7.5),
+            ('TOPPADDING', (0,0), (-1,-1), 1),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 1),
             ('FONTNAME', (0,0), (-1,1), 'Helvetica-Bold'),
             ('BACKGROUND', (0,0), (-1,1), colors.lightgrey if not is_color else colors.whitesmoke),
             ('BACKGROUND', (0,0), (0,-1), colors.lightgrey if not is_color else colors.whitesmoke),
@@ -256,7 +251,6 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
         t.setStyle(TableStyle(base_style))
         elements.append(t)
         
-        # Aggiungiamo un'interruzione di pagina nativa di ReportLab dopo ogni mese (tranne Dicembre)
         if month < 12:
             elements.append(PageBreak())
 
