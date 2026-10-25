@@ -1,166 +1,276 @@
 import io
 import datetime
+import calendar
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Spacer, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm
 from reportlab.pdfgen import canvas
 from engine import get_shift_for_crew, get_holiday_type
 
-MESI_ITALIANO = [
-    "", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
-    "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
-]
-
-# Giorni della settimana con prima lettera maiuscola (Lu, Ma, Me, Gi, Ve, Sa, Do)
-GIORNI_SETT_TITLE = ["Lu", "Ma", "Me", "Gi", "Ve", "Sa", "Do"]
-
-def generate_schedule_bn_pdf(dates_list: list, crews_list: list, title_desc: str) -> bytes:
+def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color=False):
     """
-    Genera un documento PDF in formato A4 Landscape nativo (842 x 595 pt),
-    in Bianco e Nero puro ad alta leggibilità, ottimizzato per la stampa su carta.
-    
-    Regole grafiche:
-    - Nessun colore e nessun riempimento grigio.
-    - Riposi (L, L1..L3) e riserve (R1..R3) stampati a carattere normale (no grassetto).
-    - Festivi e domeniche indicati con un'ellisse sottile attorno al giorno nella testata.
-    - I turni lavorativi mostrano il numero mezzo sopra e l'orario/stato sotto.
-    - Giorni della settimana indicati con iniziale maiuscola (Lu, Ma, Me, etc.).
-    - Nessuna riga a piè di pagina aggiuntiva.
+    Genera un PDF di una singola pagina (o tabella) per le date specificate.
+    Se is_color=True, usa i colori della web app, altrimenti stampa in B/N ottimizzato.
     """
-    PAGE_W = 841.89
-    PAGE_H = 595.28
-
     buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=(PAGE_W, PAGE_H))
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        rightMargin=1*cm,
+        leftMargin=1*cm,
+        topMargin=1*cm,
+        bottomMargin=1*cm
+    )
+    elements = []
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=14,
+        alignment=1,
+        spaceAfter=12
+    )
 
-    # Margini del foglio A4
-    MARGIN_LEFT = 24.0
-    MARGIN_RIGHT = PAGE_W - 24.0
-    TABLE_W = MARGIN_RIGHT - MARGIN_LEFT
-    MARGIN_TOP = PAGE_H - 24.0
+    elements.append(Paragraph(title_pdf, title_style))
 
-    num_days = len(dates_list)
-    num_crews = len(crews_list)
+    # Costruzione Dati Tabella
+    data = []
+    
+    # RIGA 1: Numeri del giorno
+    row_days = ["Eq."]
+    for d in dates_to_show:
+        row_days.append(d.strftime("%d"))
+    data.append(row_days)
 
-    # 1. Intestazione Titolo
-    c.setFont("Helvetica-Bold", 12.0)
-    c.drawString(MARGIN_LEFT, MARGIN_TOP - 12.0, "⚓ Proiezione turno Tripmare - Trieste")
+    # RIGA 2: Nomi dei giorni
+    day_names_it = ["lu", "ma", "me", "gi", "ve", "sa", "do"]
+    row_day_names = [""]
+    for d in dates_to_show:
+        row_day_names.append(day_names_it[d.weekday()])
+    data.append(row_day_names)
 
-    c.setFont("Helvetica", 9.5)
-    c.drawRightString(MARGIN_RIGHT, MARGIN_TOP - 12.0, title_desc)
-
-    # 2. Geometria griglia dinamica
-    Y_GRID_TOP = MARGIN_TOP - 22.0
-    Y_GRID_BOTTOM = 24.0
-    TOTAL_GRID_H = Y_GRID_TOP - Y_GRID_BOTTOM
-
-    # Larghezza etichetta equipaggio
-    LABEL_COL_W = 54.0 if num_days > 14 else 68.0
-    DAY_COL_W = (TABLE_W - LABEL_COL_W) / float(num_days)
-
-    # Altezza righe testata
-    H_HEADER_1 = 14.0  # Riga numero giorno
-    H_HEADER_2 = 14.0  # Riga lettera giorno
-    H_HEADERS = H_HEADER_1 + H_HEADER_2
-
-    # Calcolo altezza singola riga equipaggio
-    avail_crew_h = TOTAL_GRID_H - H_HEADERS
-    row_crew_h = min(avail_crew_h / float(num_crews), 28.0)
-    actual_table_h = H_HEADERS + row_crew_h * num_crews
-    y_table_bot = Y_GRID_TOP - actual_table_h
-
-    # Coordinate verticali
-    y_h1_bot = Y_GRID_TOP - H_HEADER_1
-    y_h2_bot = y_h1_bot - H_HEADER_2
-
-    # Tracciamento linee orizzontali testata
-    c.setLineWidth(1.0)
-    c.line(MARGIN_LEFT, Y_GRID_TOP, MARGIN_RIGHT, Y_GRID_TOP)
-    c.setLineWidth(0.5)
-    c.line(MARGIN_LEFT, y_h1_bot, MARGIN_RIGHT, y_h1_bot)
-    c.setLineWidth(1.0)
-    c.line(MARGIN_LEFT, y_h2_bot, MARGIN_RIGHT, y_h2_bot)
-
-    # Testo angolo in alto a sinistra
-    c.setFont("Helvetica-Bold", 7.5)
-    c.drawCentredString(MARGIN_LEFT + LABEL_COL_W / 2.0, Y_GRID_TOP - 10.0, "Giorno")
-    c.drawCentredString(MARGIN_LEFT + LABEL_COL_W / 2.0, y_h1_bot - 10.0, "Eq.")
-
-    # 3. Testata Colonne Giorni
-    font_day_size = 7.5 if num_days > 14 else 8.5
-    for idx, d in enumerate(dates_list):
-        cx = MARGIN_LEFT + LABEL_COL_W + idx * DAY_COL_W + (DAY_COL_W / 2.0)
-        is_hol, _, _ = get_holiday_type(d)
-
-        # Riga 1: Numero del giorno
-        c.setFont("Helvetica-Bold", font_day_size)
-        c.drawCentredString(cx, Y_GRID_TOP - 10.0, str(d.day))
-
-        # Riga 2: Sigla giorno settimana con prima lettera maiuscola (Lu, Ma, Me...)
-        day_str = GIORNI_SETT_TITLE[d.weekday()]
-        c.setFont("Helvetica-Bold", font_day_size)
-        c.drawCentredString(cx, y_h1_bot - 10.0, day_str)
-
-        # Ellisse sui festivi
-        if is_hol:
-            c.setLineWidth(0.6)
-            c.ellipse(cx - 5.5, y_h1_bot - 12.0, cx + 5.5, y_h1_bot - 1.0)
-
-    # 4. Righe Equipaggi e Popolamento Dati
-    font_cell_size = 7.0 if (num_crews > 10 or num_days > 21) else 8.0
-    c.setLineWidth(0.5)
-
-    for r_idx, c_num in enumerate(crews_list):
-        y_top_row = y_h2_bot - r_idx * row_crew_h
-        y_bot_row = y_top_row - row_crew_h
-
-        # Bordo inferiore riga
-        c.line(MARGIN_LEFT, y_bot_row, MARGIN_RIGHT, y_bot_row)
-
-        # Etichetta equipaggio a sinistra
-        c.setFont("Helvetica-Bold", font_cell_size + 0.5)
-        eq_label = f"Eq. {c_num}"
-        c.drawCentredString(MARGIN_LEFT + LABEL_COL_W / 2.0, y_bot_row + (row_crew_h / 2.0) - 2.5, eq_label)
-
-        # Celle del turno
-        for d_idx, d in enumerate(dates_list):
-            cx = MARGIN_LEFT + LABEL_COL_W + d_idx * DAY_COL_W + (DAY_COL_W / 2.0)
+    # RIGHE EQUIPAGGI
+    for c_num in crews_to_render:
+        label = f"Eq. {c_num} 🎱" if c_num == 8 else f"Eq. {c_num}"
+        row = [label]
+        for d in dates_to_show:
             shift = get_shift_for_crew(c_num, d)
-            stato = shift.get("stato", "")
-            mezzo = shift.get("mezzo")
-
-            # Stampa B/N: carattere normale (no grassetto) per riposi e riserve
-            if stato == "L":
-                c.setFont("Helvetica", font_cell_size)
-                c.drawCentredString(cx, y_bot_row + (row_crew_h / 2.0) - 2.5, "L")
-            elif stato in ["L1", "L2", "L3"]:
-                c.setFont("Helvetica", font_cell_size)
-                c.drawCentredString(cx, y_bot_row + (row_crew_h / 2.0) - 2.5, stato)
-            elif stato.startswith("R"):
-                c.setFont("Helvetica", font_cell_size)
-                c.drawCentredString(cx, y_bot_row + (row_crew_h / 2.0) - 2.5, stato)
+            mezzo = shift["mezzo"]
+            stato = shift["stato"]
+            
+            if mezzo:
+                cell_text = f"{mezzo}\n{stato}"
             else:
-                # Turno lavorativo operativo: mezzo sopra, stato sotto
-                if mezzo:
-                    c.setFont("Helvetica-Bold", font_cell_size)
-                    c.drawCentredString(cx, y_bot_row + (row_crew_h / 2.0) + 1.5, str(mezzo))
-                    c.setFont("Helvetica", font_cell_size - 0.5)
-                    c.drawCentredString(cx, y_bot_row + (row_crew_h / 2.0) - 7.0, stato)
+                cell_text = stato
+            row.append(cell_text)
+        data.append(row)
+
+    # Impostazione layout base tabella
+    num_cols = len(dates_to_show) + 1
+    # La prima colonna (Eq.) è più larga, le altre calcolate equamente
+    avail_width = landscape(A4)[0] - 2*cm
+    col_w = (avail_width - 2.5*cm) / (num_cols - 1)
+    col_widths = [2.5*cm] + [col_w] * (num_cols - 1)
+
+    t = Table(data, colWidths=col_widths, repeatRows=2)
+
+    # Stile base tabella (B/N o Colori condizionato per celle specifiche)
+    base_style = [
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+        ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
+        ('FONTSIZE', (0,0), (-1,-1), 8),
+        ('FONTNAME', (0,0), (-1,1), 'Helvetica-Bold'),
+        ('BACKGROUND', (0,0), (-1,1), colors.lightgrey if not is_color else colors.whitesmoke),
+        ('BACKGROUND', (0,0), (0,-1), colors.lightgrey if not is_color else colors.whitesmoke),
+    ]
+
+    # Applichiamo gli stili condizionali (Festivi, Riposi)
+    today_date = datetime.date.today()
+    for col_idx, d in enumerate(dates_to_show):
+        c = col_idx + 1
+        is_hol, is_semi, _ = get_holiday_type(d)
+        is_today = (d == today_date)
+
+        # Intestazione Colonne
+        if is_color:
+            if is_hol:
+                base_style.append(('BACKGROUND', (c, 0), (c, 1), colors.HexColor("#fecaca"))) # Rosso chiaro
+            elif is_semi:
+                base_style.append(('BACKGROUND', (c, 0), (c, 1), colors.HexColor("#fed7aa"))) # Arancione/Salmone chiaro
+        else:
+            if is_hol or is_semi:
+                # Nel B/N usiamo un tratto più spesso per la testata
+                base_style.append(('BOX', (c, 0), (c, 1), 1.5, colors.black))
+        
+        if is_today:
+             base_style.append(('BOX', (c, 0), (c, -1), 1.5, colors.blue if is_color else colors.black))
+
+        # Celle Dati
+        for row_idx, c_num in enumerate(crews_to_render):
+            r = row_idx + 2
+            shift = get_shift_for_crew(c_num, d)
+            stato = shift["stato"]
+
+            if is_color:
+                if stato == "L":
+                    base_style.append(('BACKGROUND', (c, r), (c, r), colors.HexColor("#dcfce7"))) # Verde L
+                elif stato in ["L1", "L2", "L3"]:
+                    base_style.append(('BACKGROUND', (c, r), (c, r), colors.HexColor("#fef9c3"))) # Giallo L disp
+                elif stato.startswith("R"):
+                    base_style.append(('BACKGROUND', (c, r), (c, r), colors.HexColor("#e2e8f0"))) # Grigio R
                 else:
-                    c.setFont("Helvetica", font_cell_size)
-                    c.drawCentredString(cx, y_bot_row + (row_crew_h / 2.0) - 2.5, stato)
+                    base_style.append(('BACKGROUND', (c, r), (c, r), colors.white)) # Lavoro bianco
+            else:
+                # Se è B/N non impostiamo sfondi per risparmiare inchiostro, il nero standard basta
+                pass
 
-    # 5. Linee Verticali
-    c.setLineWidth(0.4)
-    for col_idx in range(1, num_days):
-        x_div = MARGIN_LEFT + LABEL_COL_W + col_idx * DAY_COL_W
-        c.line(x_div, Y_GRID_TOP, x_div, y_table_bot)
+    t.setStyle(TableStyle(base_style))
+    elements.append(t)
+    
+    doc.build(elements)
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+    return pdf_bytes
 
-    # Bordo verticale separatore tra etichetta equipaggio e giorni
-    c.setLineWidth(1.2)
-    c.line(MARGIN_LEFT + LABEL_COL_W, Y_GRID_TOP, MARGIN_LEFT + LABEL_COL_W, y_table_bot)
+def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: bool = False):
+    """
+    Genera un PDF di 12 pagine (da Gennaio a Dicembre) per l'anno specificato.
+    Ciascuna pagina formatta un singolo mese, esattamente come la schermata Mese Completo.
+    """
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        rightMargin=1*cm,
+        leftMargin=1*cm,
+        topMargin=1*cm,
+        bottomMargin=1*cm
+    )
+    elements = []
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=14,
+        alignment=1,
+        spaceAfter=12
+    )
+    
+    mesi_italiano = [
+        "", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+        "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
+    ]
+    day_names_it = ["lu", "ma", "me", "gi", "ve", "sa", "do"]
+    today_date = datetime.date.today()
 
-    # Perimetro esterno marcato
-    c.setLineWidth(1.2)
-    c.rect(MARGIN_LEFT, y_table_bot, TABLE_W, actual_table_h, stroke=1, fill=0)
+    # Creiamo una funzione interna personalizzata per forzare il page break in ReportLab
+    class PageBreak(Spacer):
+        def __init__(self):
+            Spacer.__init__(self, 0, 0)
+        def wrap(self, availWidth, availHeight):
+            return 0, 0
+        def draw(self):
+            self.canv.showPage()
+            
+    for month in range(1, 13):
+        title_pdf = f"Turno Tripmare - {mesi_italiano[month]} {year}"
+        elements.append(Paragraph(title_pdf, title_style))
+        
+        _, num_days = calendar.monthrange(year, month)
+        dates_to_show = [datetime.date(year, month, day) for day in range(1, num_days + 1)]
+        
+        data = []
+        # RIGA 1: Numeri del giorno
+        row_days = ["Eq."]
+        for d in dates_to_show:
+            row_days.append(d.strftime("%d"))
+        data.append(row_days)
 
-    c.save()
-    buffer.seek(0)
-    return buffer.getvalue()
+        # RIGA 2: Nomi dei giorni
+        row_day_names = [""]
+        for d in dates_to_show:
+            row_day_names.append(day_names_it[d.weekday()])
+        data.append(row_day_names)
+
+        # RIGHE EQUIPAGGI
+        for c_num in crews_to_render:
+            label = f"Eq. {c_num} 🎱" if c_num == 8 else f"Eq. {c_num}"
+            row = [label]
+            for d in dates_to_show:
+                shift = get_shift_for_crew(c_num, d)
+                mezzo = shift["mezzo"]
+                stato = shift["stato"]
+                
+                if mezzo:
+                    cell_text = f"{mezzo}\n{stato}"
+                else:
+                    cell_text = stato
+                row.append(cell_text)
+            data.append(row)
+
+        num_cols = len(dates_to_show) + 1
+        avail_width = landscape(A4)[0] - 2*cm
+        col_w = (avail_width - 2.5*cm) / (num_cols - 1)
+        col_widths = [2.5*cm] + [col_w] * (num_cols - 1)
+
+        t = Table(data, colWidths=col_widths, repeatRows=2)
+
+        base_style = [
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+            ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
+            ('FONTSIZE', (0,0), (-1,-1), 8),
+            ('FONTNAME', (0,0), (-1,1), 'Helvetica-Bold'),
+            ('BACKGROUND', (0,0), (-1,1), colors.lightgrey if not is_color else colors.whitesmoke),
+            ('BACKGROUND', (0,0), (0,-1), colors.lightgrey if not is_color else colors.whitesmoke),
+        ]
+
+        for col_idx, d in enumerate(dates_to_show):
+            c = col_idx + 1
+            is_hol, is_semi, _ = get_holiday_type(d)
+            is_today = (d == today_date)
+
+            if is_color:
+                if is_hol:
+                    base_style.append(('BACKGROUND', (c, 0), (c, 1), colors.HexColor("#fecaca")))
+                elif is_semi:
+                    base_style.append(('BACKGROUND', (c, 0), (c, 1), colors.HexColor("#fed7aa")))
+            else:
+                if is_hol or is_semi:
+                    base_style.append(('BOX', (c, 0), (c, 1), 1.5, colors.black))
+            
+            if is_today:
+                 base_style.append(('BOX', (c, 0), (c, -1), 1.5, colors.blue if is_color else colors.black))
+
+            for row_idx, c_num in enumerate(crews_to_render):
+                r = row_idx + 2
+                shift = get_shift_for_crew(c_num, d)
+                stato = shift["stato"]
+
+                if is_color:
+                    if stato == "L":
+                        base_style.append(('BACKGROUND', (c, r), (c, r), colors.HexColor("#dcfce7")))
+                    elif stato in ["L1", "L2", "L3"]:
+                        base_style.append(('BACKGROUND', (c, r), (c, r), colors.HexColor("#fef9c3")))
+                    elif stato.startswith("R"):
+                        base_style.append(('BACKGROUND', (c, r), (c, r), colors.HexColor("#e2e8f0")))
+                    else:
+                        base_style.append(('BACKGROUND', (c, r), (c, r), colors.white))
+
+        t.setStyle(TableStyle(base_style))
+        elements.append(t)
+        
+        # Aggiungiamo un'interruzione di pagina dopo ogni mese (tranne Dicembre)
+        if month < 12:
+            elements.append(Spacer(1, 0)) # Spazio dummy
+            elements.append(PageBreak())
+
+    doc.build(elements)
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+    return pdf_bytes
