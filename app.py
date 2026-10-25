@@ -328,7 +328,6 @@ with col_btn_year:
     except Exception as e:
         st.error(f"Errore stampa turno annuale: {e}")
 
-
 # ---------------------------------------------------------
 # GENERAZIONE TABELLA HTML A VIDEO
 # ---------------------------------------------------------
