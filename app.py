@@ -136,6 +136,7 @@ if "current_date" not in st.session_state:
     st.session_state.current_date = datetime.date.today()
 
 st.title("⚓ Proiezione turno Tripmare")
+st.warning("⚠️ **Lavori in corso**: stiamo aggiornando alcune funzioni. L'applicazione potrebbe essere temporaneamente instabile. Il banner verrà rimosso a fine lavori.")
 st.markdown('<p class="device-hint">📱 Su dispositivi mobili si consiglia la visualizzazione in orizzontale (Landscape).</p>', unsafe_allow_html=True)
 
 c1, c2, c3, c4 = st.columns([1.5, 1.2, 1.2, 1.5])
@@ -282,7 +283,7 @@ col_style, col_btn_month, col_btn_year = st.columns([1.5, 1.5, 1.5])
 with col_style:
     print_style = st.radio(
         "Stile di stampa (PDF):",
-        options=["⚪ 🖨️ Bianco e Nero (Carta)", "🔘 🎨 A Colori (Digitale)"],
+        options=["🖨️ Bianco e Nero (Carta)", "🎨 A Colori (Digitale)"],
         index=0,
         horizontal=True
     )
@@ -310,12 +311,7 @@ with col_btn_month:
         st.error(f"Errore stampa turno mensile: {e}")
 
 with col_btn_year:
-    # Il pulsante anno usa sempre l'anno attualmente selezionato (curr.year)
-    # L'utente saprà chiaramente cosa sta scaricando grazie all'etichetta del bottone.
     btn_year_label = f"📅 Scarica Intero Anno {curr.year} (12 Pagine)"
-    # Utilizziamo un form invisibile o un generatore on-the-fly per non pre-calcolare i 12 mesi
-    # se l'utente non lo richiede, ma st.download_button richiede i dati pronti.
-    # Con 0.3s di elaborazione, generarlo ad ogni reload va benissimo per la fluidità dell'app.
     try:
         annual_pdf_data = generate_annual_schedule_pdf(curr.year, crews_to_render, is_color)
         pdf_name_annual = f"Turno_Tripmare_Anno_{curr.year}_{style_suffix}.pdf"
