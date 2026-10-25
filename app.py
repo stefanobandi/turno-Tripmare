@@ -14,7 +14,7 @@ from engine import (
 )
 from faq import render_documentation_section, render_faq_section
 from timesheet import generate_monthly_timesheet_pdf, generate_monthly_timesheet_excel
-from schedule_pdf import generate_schedule_bn_pdf
+from schedule_pdf import generate_schedule_bn_pdf, generate_annual_schedule_pdf
 from tracker import log_page_view, log_download, get_analytics_summary
 
 st.set_page_config(page_title="Proiezione turno Tripmare", layout="wide")
@@ -72,7 +72,10 @@ if stats_mode:
                         "pdf_presenze": "Foglio Presenze (PDF)",
                         "excel_presenze": "Foglio Presenze (Excel)",
                         "calendario_ics": "Calendario (.ics)",
-                        "pdf_turno_bn": "Turno Stampa (PDF B/N)"
+                        "pdf_turno_bn": "Turno Stampa (PDF B/N)",
+                        "pdf_turno_colori": "Turno Stampa (PDF Colori)",
+                        "pdf_turno_annuale_bn": "Turno Annuale (PDF B/N)",
+                        "pdf_turno_annuale_colori": "Turno Annuale (PDF Colori)",
                     }
                     df_tipi = pd.DataFrame([
                         {"Tipo File": label_map.get(k, k), "Download": v}
@@ -272,27 +275,67 @@ else:
     crews_to_render = list(range(1, 22))
     title_pdf = f"Tutti i 21 Equipaggi - {period_label}"
 
-# Pulsante Stampa Turno Visualizzato in Bianco e Nero
-col_top_act1, col_top_act2 = st.columns([3, 1.2])
-with col_top_act2:
+# ---------------------------------------------------------
+# SEZIONE STAMPA TURNO (Colore vs B/N e Mese vs Anno)
+# ---------------------------------------------------------
+col_style, col_btn_month, col_btn_year = st.columns([1.5, 1.5, 1.5])
+with col_style:
+    print_style = st.radio(
+        "Stile di stampa (PDF):",
+        options=["⚪ 🖨️ Bianco e Nero (Carta)", "🔘 🎨 A Colori (Digitale)"],
+        index=0,
+        horizontal=True
+    )
+    is_color = "A Colori" in print_style
+    style_suffix = "Colori" if is_color else "BN"
+    tracker_prefix = "pdf_turno_colori" if is_color else "pdf_turno_bn"
+    tracker_annual = "pdf_turno_annuale_colori" if is_color else "pdf_turno_annuale_bn"
+
+with col_btn_month:
     try:
-        schedule_pdf_data = generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf)
+        schedule_pdf_data = generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color)
         clean_file_label = period_label.replace(" ", "_").replace("/", "-")
-        pdf_name_schedule = f"turno_tripmare_{clean_file_label}_BN.pdf"
+        pdf_name_schedule = f"Turno_Tripmare_{clean_file_label}_{style_suffix}.pdf"
+        
         st.download_button(
-            label="🖨️ Stampa Turno Visualizzato (PDF B/N)",
+            label="📄 Scarica Turno Visualizzato (1 Pagina)",
             data=schedule_pdf_data,
             file_name=pdf_name_schedule,
             mime="application/pdf",
             use_container_width=True,
             on_click=log_download,
-            args=("pdf_turno_bn", title_pdf),
-            help="Genera un PDF A4 orizzontale in puro bianco e nero, ottimizzato per stampare su carta senza consumare inchiostro."
+            args=(tracker_prefix, title_pdf)
         )
     except Exception as e:
-        st.error(f"Errore stampa turno: {e}")
+        st.error(f"Errore stampa turno mensile: {e}")
 
-# Generazione della tabella HTML a video
+with col_btn_year:
+    # Il pulsante anno usa sempre l'anno attualmente selezionato (curr.year)
+    # L'utente saprà chiaramente cosa sta scaricando grazie all'etichetta del bottone.
+    btn_year_label = f"📅 Scarica Intero Anno {curr.year} (12 Pagine)"
+    # Utilizziamo un form invisibile o un generatore on-the-fly per non pre-calcolare i 12 mesi
+    # se l'utente non lo richiede, ma st.download_button richiede i dati pronti.
+    # Con 0.3s di elaborazione, generarlo ad ogni reload va benissimo per la fluidità dell'app.
+    try:
+        annual_pdf_data = generate_annual_schedule_pdf(curr.year, crews_to_render, is_color)
+        pdf_name_annual = f"Turno_Tripmare_Anno_{curr.year}_{style_suffix}.pdf"
+        
+        st.download_button(
+            label=btn_year_label,
+            data=annual_pdf_data,
+            file_name=pdf_name_annual,
+            mime="application/pdf",
+            use_container_width=True,
+            on_click=log_download,
+            args=(tracker_annual, f"Anno intero {curr.year}")
+        )
+    except Exception as e:
+        st.error(f"Errore stampa turno annuale: {e}")
+
+
+# ---------------------------------------------------------
+# GENERAZIONE TABELLA HTML A VIDEO
+# ---------------------------------------------------------
 html_table = ['<div class="matrix-wrapper"><table class="matrix-table">']
 html_table.append('<thead><tr><th class="crew-label-cell th-corner-1">Giorno</th>')
 day_names_it = ["lu", "ma", "me", "gi", "ve", "sa", "do"]
