@@ -53,7 +53,7 @@ def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color
 
     # RIGHE EQUIPAGGI
     for c_num in crews_to_render:
-        label = f"Eq. {c_num} 🎱" if c_num == 8 else f"Eq. {c_num}"
+        label = f"Eq. {c_num}" # Rimossa l'icona dell'otto per le stampe
         row = [label]
         for d in dates_to_show:
             shift = get_shift_for_crew(c_num, d)
@@ -75,26 +75,24 @@ def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color
 
     t = Table(data, colWidths=col_widths, repeatRows=2)
 
-    # Stile ultra-compatto per forzare la tabella su una sola pagina
+    # Stile ultra-compatto (font 7 e padding 0) per forzare i 21 eq su una sola pagina
     base_style = [
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('GRID', (0,0), (-1,-1), 0.5, colors.black),
         ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
-        ('FONTSIZE', (0,0), (-1,-1), 7.5),
-        ('TOPPADDING', (0,0), (-1,-1), 1),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 1),
+        ('FONTSIZE', (0,0), (-1,-1), 7), 
+        ('TOPPADDING', (0,0), (-1,-1), 0),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
         ('FONTNAME', (0,0), (-1,1), 'Helvetica-Bold'),
         ('BACKGROUND', (0,0), (-1,1), colors.lightgrey if not is_color else colors.whitesmoke),
         ('BACKGROUND', (0,0), (0,-1), colors.lightgrey if not is_color else colors.whitesmoke),
     ]
 
     # Applichiamo gli stili condizionali
-    today_date = datetime.date.today()
     for col_idx, d in enumerate(dates_to_show):
         c = col_idx + 1
         is_hol, is_semi, _ = get_holiday_type(d)
-        is_today = (d == today_date)
 
         if is_color:
             if is_hol:
@@ -105,8 +103,7 @@ def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color
             if is_hol or is_semi:
                 base_style.append(('BOX', (c, 0), (c, 1), 1.5, colors.black))
         
-        if is_today:
-             base_style.append(('BOX', (c, 0), (c, -1), 1.5, colors.blue if is_color else colors.black))
+        # Rimossa l'evidenziazione del giorno odierno nel PDF
 
         for row_idx, c_num in enumerate(crews_to_render):
             r = row_idx + 2
@@ -161,7 +158,6 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
         "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
     ]
     day_names_it = ["lu", "ma", "me", "gi", "ve", "sa", "do"]
-    today_date = datetime.date.today()
 
     for month in range(1, 13):
         title_pdf = f"Turno Tripmare - {mesi_italiano[month]} {year}"
@@ -182,7 +178,7 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
         data.append(row_day_names)
 
         for c_num in crews_to_render:
-            label = f"Eq. {c_num} 🎱" if c_num == 8 else f"Eq. {c_num}"
+            label = f"Eq. {c_num}" # Rimossa l'icona dell'otto per le stampe
             row = [label]
             for d in dates_to_show:
                 shift = get_shift_for_crew(c_num, d)
@@ -203,14 +199,15 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
 
         t = Table(data, colWidths=col_widths, repeatRows=2)
 
+        # Stile ultra-compatto (font 7 e padding 0)
         base_style = [
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ('GRID', (0,0), (-1,-1), 0.5, colors.black),
             ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
-            ('FONTSIZE', (0,0), (-1,-1), 7.5),
-            ('TOPPADDING', (0,0), (-1,-1), 1),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 1),
+            ('FONTSIZE', (0,0), (-1,-1), 7),
+            ('TOPPADDING', (0,0), (-1,-1), 0),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 0),
             ('FONTNAME', (0,0), (-1,1), 'Helvetica-Bold'),
             ('BACKGROUND', (0,0), (-1,1), colors.lightgrey if not is_color else colors.whitesmoke),
             ('BACKGROUND', (0,0), (0,-1), colors.lightgrey if not is_color else colors.whitesmoke),
@@ -219,7 +216,6 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
         for col_idx, d in enumerate(dates_to_show):
             c = col_idx + 1
             is_hol, is_semi, _ = get_holiday_type(d)
-            is_today = (d == today_date)
 
             if is_color:
                 if is_hol:
@@ -230,8 +226,7 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
                 if is_hol or is_semi:
                     base_style.append(('BOX', (c, 0), (c, 1), 1.5, colors.black))
             
-            if is_today:
-                 base_style.append(('BOX', (c, 0), (c, -1), 1.5, colors.blue if is_color else colors.black))
+            # Rimossa l'evidenziazione del giorno odierno nel PDF
 
             for row_idx, c_num in enumerate(crews_to_render):
                 r = row_idx + 2
