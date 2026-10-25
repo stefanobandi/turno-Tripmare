@@ -18,19 +18,19 @@ def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color
     doc = SimpleDocTemplate(
         buffer,
         pagesize=landscape(A4),
-        rightMargin=1*cm,
-        leftMargin=1*cm,
-        topMargin=0.5*cm,
-        bottomMargin=0.5*cm
+        rightMargin=0.8*cm,
+        leftMargin=0.8*cm,
+        topMargin=0.3*cm,
+        bottomMargin=0.3*cm
     )
     elements = []
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
         'CustomTitle',
         parent=styles['Heading1'],
-        fontSize=12,
+        fontSize=11,
         alignment=1,
-        spaceAfter=6
+        spaceAfter=4
     )
 
     elements.append(Paragraph(title_pdf, title_style))
@@ -69,19 +69,19 @@ def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color
 
     # Impostazione layout base tabella
     num_cols = len(dates_to_show) + 1
-    avail_width = landscape(A4)[0] - 2*cm
-    col_w = (avail_width - 2.0*cm) / (num_cols - 1)
-    col_widths = [2.0*cm] + [col_w] * (num_cols - 1)
+    avail_width = landscape(A4)[0] - 1.6*cm
+    col_w = (avail_width - 1.8*cm) / (num_cols - 1)
+    col_widths = [1.8*cm] + [col_w] * (num_cols - 1)
 
     t = Table(data, colWidths=col_widths, repeatRows=2)
 
-    # Stile ultra-compatto (font 7 e padding 0) per forzare i 21 eq su una sola pagina
+    # Stile ultra-compatto (font 6.5 e padding 0) per forzare i 21 eq su una sola pagina
     base_style = [
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('GRID', (0,0), (-1,-1), 0.5, colors.black),
         ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
-        ('FONTSIZE', (0,0), (-1,-1), 7), 
+        ('FONTSIZE', (0,0), (-1,-1), 6.5), 
         ('TOPPADDING', (0,0), (-1,-1), 0),
         ('BOTTOMPADDING', (0,0), (-1,-1), 0),
         ('FONTNAME', (0,0), (-1,1), 'Helvetica-Bold'),
@@ -103,7 +103,7 @@ def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color
             if is_hol or is_semi:
                 base_style.append(('BOX', (c, 0), (c, 1), 1.5, colors.black))
         
-        # Rimossa l'evidenziazione del giorno odierno nel PDF
+        # Rimosso il riquadro per identificare il giorno odierno nelle stampe PDF
 
         for row_idx, c_num in enumerate(crews_to_render):
             r = row_idx + 2
@@ -138,19 +138,19 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
     doc = SimpleDocTemplate(
         buffer,
         pagesize=landscape(A4),
-        rightMargin=1*cm,
-        leftMargin=1*cm,
-        topMargin=0.5*cm,
-        bottomMargin=0.5*cm
+        rightMargin=0.8*cm,
+        leftMargin=0.8*cm,
+        topMargin=0.3*cm,
+        bottomMargin=0.3*cm
     )
     elements = []
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
         'CustomTitle',
         parent=styles['Heading1'],
-        fontSize=12,
+        fontSize=11,
         alignment=1,
-        spaceAfter=6
+        spaceAfter=4
     )
     
     mesi_italiano = [
@@ -193,19 +193,19 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
             data.append(row)
 
         num_cols = len(dates_to_show) + 1
-        avail_width = landscape(A4)[0] - 2*cm
-        col_w = (avail_width - 2.0*cm) / (num_cols - 1)
-        col_widths = [2.0*cm] + [col_w] * (num_cols - 1)
+        avail_width = landscape(A4)[0] - 1.6*cm
+        col_w = (avail_width - 1.8*cm) / (num_cols - 1)
+        col_widths = [1.8*cm] + [col_w] * (num_cols - 1)
 
         t = Table(data, colWidths=col_widths, repeatRows=2)
 
-        # Stile ultra-compatto (font 7 e padding 0)
+        # Stile ultra-compatto (font 6.5 e padding 0)
         base_style = [
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ('GRID', (0,0), (-1,-1), 0.5, colors.black),
             ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
-            ('FONTSIZE', (0,0), (-1,-1), 7),
+            ('FONTSIZE', (0,0), (-1,-1), 6.5),
             ('TOPPADDING', (0,0), (-1,-1), 0),
             ('BOTTOMPADDING', (0,0), (-1,-1), 0),
             ('FONTNAME', (0,0), (-1,1), 'Helvetica-Bold'),
@@ -226,7 +226,7 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
                 if is_hol or is_semi:
                     base_style.append(('BOX', (c, 0), (c, 1), 1.5, colors.black))
             
-            # Rimossa l'evidenziazione del giorno odierno nel PDF
+            # Rimosso il riquadro per identificare il giorno odierno nelle stampe PDF
 
             for row_idx, c_num in enumerate(crews_to_render):
                 r = row_idx + 2
