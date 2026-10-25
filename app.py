@@ -136,7 +136,6 @@ if "current_date" not in st.session_state:
     st.session_state.current_date = datetime.date.today()
 
 st.title("⚓ Proiezione turno Tripmare")
-st.warning("⚠️ **Lavori in corso**: stiamo aggiornando alcune funzioni. L'applicazione potrebbe essere temporaneamente instabile. Il banner verrà rimosso a fine lavori.")
 st.markdown('<p class="device-hint">📱 Su dispositivi mobili si consiglia la visualizzazione in orizzontale (Landscape).</p>', unsafe_allow_html=True)
 
 c1, c2, c3, c4 = st.columns([1.5, 1.2, 1.2, 1.5])
@@ -293,6 +292,8 @@ with col_style:
     tracker_annual = "pdf_turno_annuale_colori" if is_color else "pdf_turno_annuale_bn"
 
 with col_btn_month:
+    # Spazio per mantenere allineati i bottoni
+    st.markdown("<div style='font-size: 13px; margin-bottom: 4px;'>&nbsp;</div>", unsafe_allow_html=True)
     try:
         schedule_pdf_data = generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color)
         clean_file_label = period_label.replace(" ", "_").replace("/", "-")
@@ -311,6 +312,7 @@ with col_btn_month:
         st.error(f"Errore stampa turno mensile: {e}")
 
 with col_btn_year:
+    st.markdown("<div style='font-size: 13px; font-weight: 900; color: #dc2626; margin-bottom: 4px;'>✨ NOVITÀ</div>", unsafe_allow_html=True)
     btn_year_label = f"📅 Scarica Intero Anno {curr.year} (12 Pagine)"
     try:
         annual_pdf_data = generate_annual_schedule_pdf(curr.year, crews_to_render, is_color)
