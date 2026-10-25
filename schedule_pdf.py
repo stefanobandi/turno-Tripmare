@@ -3,7 +3,7 @@ import datetime
 import calendar
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Spacer, Paragraph
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Spacer, Paragraph, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.pdfgen import canvas
@@ -167,15 +167,6 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
     day_names_it = ["lu", "ma", "me", "gi", "ve", "sa", "do"]
     today_date = datetime.date.today()
 
-    # Creiamo una funzione interna personalizzata per forzare il page break in ReportLab
-    class PageBreak(Spacer):
-        def __init__(self):
-            Spacer.__init__(self, 0, 0)
-        def wrap(self, availWidth, availHeight):
-            return 0, 0
-        def draw(self):
-            self.canv.showPage()
-            
     for month in range(1, 13):
         title_pdf = f"Turno Tripmare - {mesi_italiano[month]} {year}"
         elements.append(Paragraph(title_pdf, title_style))
@@ -265,9 +256,8 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
         t.setStyle(TableStyle(base_style))
         elements.append(t)
         
-        # Aggiungiamo un'interruzione di pagina dopo ogni mese (tranne Dicembre)
+        # Aggiungiamo un'interruzione di pagina nativa di ReportLab dopo ogni mese (tranne Dicembre)
         if month < 12:
-            elements.append(Spacer(1, 0)) # Spazio dummy
             elements.append(PageBreak())
 
     doc.build(elements)
