@@ -40,17 +40,17 @@ def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color
         pagesize=landscape(A4),
         rightMargin=0.8*cm,
         leftMargin=0.8*cm,
-        topMargin=0.3*cm,
-        bottomMargin=1.0*cm  # Aumentato per fare spazio al footer
+        topMargin=0.2*cm,      # Ridotto ulteriormente
+        bottomMargin=0.9*cm    # Spazio per il footer
     )
     elements = []
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
         'CustomTitle',
         parent=styles['Heading1'],
-        fontSize=11,
+        fontSize=10,         # Ridotto da 11 a 10
         alignment=1,
-        spaceAfter=4
+        spaceAfter=2         # Ridotto lo spazio vuoto sotto il titolo
     )
 
     elements.append(Paragraph(title_pdf, title_style))
@@ -95,13 +95,14 @@ def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color
 
     t = Table(data, colWidths=col_widths, repeatRows=2)
 
-    # Stile ultra-compatto (font 6.5 e padding 0) per forzare i 21 eq su una sola pagina
+    # Stile ultra-compatto: l'aggiunta di LEADING comprime lo spazio dell'invio a capo (\n)
     base_style = [
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('GRID', (0,0), (-1,-1), 0.5, colors.black),
         ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
         ('FONTSIZE', (0,0), (-1,-1), 6.5), 
+        ('LEADING', (0,0), (-1,-1), 7.5),   # <--- Comprime lo spazio verticale delle doppie righe
         ('TOPPADDING', (0,0), (-1,-1), 0),
         ('BOTTOMPADDING', (0,0), (-1,-1), 0),
         ('FONTNAME', (0,0), (-1,1), 'Helvetica-Bold'),
@@ -122,13 +123,11 @@ def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color
         else:
             if is_hol or is_semi:
                 base_style.append(('BOX', (c, 0), (c, 1), 1.5, colors.black))
-        
-        # Rimosso il riquadro per identificare il giorno odierno nelle stampe PDF
 
         for row_idx, c_num in enumerate(crews_to_render):
             r = row_idx + 2
             
-            # Aggiunta linea spessa fine terzina (ogni multiplo di 3, tranne l'ultima riga stampata)
+            # Aggiunta linea spessa fine terzina
             if c_num % 3 == 0 and c_num != crews_to_render[-1]:
                 base_style.append(('LINEBELOW', (0, r), (-1, r), 1.2, colors.black))
 
@@ -165,17 +164,17 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
         pagesize=landscape(A4),
         rightMargin=0.8*cm,
         leftMargin=0.8*cm,
-        topMargin=0.3*cm,
-        bottomMargin=1.0*cm  # Aumentato per fare spazio al footer
+        topMargin=0.2*cm,      # Ridotto
+        bottomMargin=0.9*cm    # Spazio footer
     )
     elements = []
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
         'CustomTitle',
         parent=styles['Heading1'],
-        fontSize=11,
+        fontSize=10,         # Ridotto
         alignment=1,
-        spaceAfter=4
+        spaceAfter=2         # Ridotto
     )
     
     mesi_italiano = [
@@ -203,7 +202,7 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
         data.append(row_day_names)
 
         for c_num in crews_to_render:
-            label = f"Eq. {c_num}" # Rimossa l'icona dell'otto per le stampe
+            label = f"Eq. {c_num}" 
             row = [label]
             for d in dates_to_show:
                 shift = get_shift_for_crew(c_num, d)
@@ -224,13 +223,13 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
 
         t = Table(data, colWidths=col_widths, repeatRows=2)
 
-        # Stile ultra-compatto (font 6.5 e padding 0)
         base_style = [
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ('GRID', (0,0), (-1,-1), 0.5, colors.black),
             ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
             ('FONTSIZE', (0,0), (-1,-1), 6.5),
+            ('LEADING', (0,0), (-1,-1), 7.5),   # <--- Comprime lo spazio verticale delle doppie righe
             ('TOPPADDING', (0,0), (-1,-1), 0),
             ('BOTTOMPADDING', (0,0), (-1,-1), 0),
             ('FONTNAME', (0,0), (-1,1), 'Helvetica-Bold'),
@@ -251,8 +250,6 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
                 if is_hol or is_semi:
                     base_style.append(('BOX', (c, 0), (c, 1), 1.5, colors.black))
             
-            # Rimosso il riquadro per identificare il giorno odierno nelle stampe PDF
-
             for row_idx, c_num in enumerate(crews_to_render):
                 r = row_idx + 2
                 
