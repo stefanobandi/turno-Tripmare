@@ -9,6 +9,26 @@ from reportlab.lib.units import cm
 from reportlab.pdfgen import canvas
 from engine import get_shift_for_crew, get_holiday_type
 
+def add_footer(canvas, doc):
+    """
+    Funzione per disegnare il piè di pagina (legenda e timestamp) in tutte le pagine PDF.
+    """
+    canvas.saveState()
+    canvas.setFont('Helvetica', 6.5)
+    canvas.setStrokeColorRGB(0.4, 0.4, 0.4)
+    canvas.setFillColorRGB(0.4, 0.4, 0.4)
+    
+    # Micro-legenda a sinistra
+    legend_text = "Legenda: L=Libero | L1/L2/L3=Disponibilità | R1/R2/R3=Riserva | 08:20=Diurno | 20=Montante | 08=Smontante"
+    canvas.drawString(0.8 * cm, 0.5 * cm, legend_text)
+    
+    # Timestamp a destra
+    now_str = datetime.datetime.now().strftime("%d/%m/%Y alle %H:%M")
+    timestamp_text = f"Generato il {now_str}"
+    canvas.drawRightString(landscape(A4)[0] - 0.8 * cm, 0.5 * cm, timestamp_text)
+    
+    canvas.restoreState()
+
 def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color=False):
     """
     Genera un PDF di una singola pagina (o tabella) per le date specificate.
@@ -21,7 +41,7 @@ def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color
         rightMargin=0.8*cm,
         leftMargin=0.8*cm,
         topMargin=0.3*cm,
-        bottomMargin=0.3*cm
+        bottomMargin=1.0*cm  # Aumentato per fare spazio al footer
     )
     elements = []
     styles = getSampleStyleSheet()
@@ -89,7 +109,7 @@ def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color
         ('BACKGROUND', (0,0), (0,-1), colors.lightgrey if not is_color else colors.whitesmoke),
     ]
 
-    # Applichiamo gli stili condizionali
+    # Applichiamo gli stili condizionali per colonne
     for col_idx, d in enumerate(dates_to_show):
         c = col_idx + 1
         is_hol, is_semi, _ = get_holiday_type(d)
@@ -107,6 +127,11 @@ def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color
 
         for row_idx, c_num in enumerate(crews_to_render):
             r = row_idx + 2
+            
+            # Aggiunta linea spessa fine terzina (ogni multiplo di 3, tranne l'ultima riga stampata)
+            if c_num % 3 == 0 and c_num != crews_to_render[-1]:
+                base_style.append(('LINEBELOW', (0, r), (-1, r), 1.2, colors.black))
+
             shift = get_shift_for_crew(c_num, d)
             stato = shift["stato"]
 
@@ -123,7 +148,7 @@ def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color
     t.setStyle(TableStyle(base_style))
     elements.append(t)
     
-    doc.build(elements)
+    doc.build(elements, onFirstPage=add_footer, onLaterPages=add_footer)
     pdf_bytes = buffer.getvalue()
     buffer.close()
     return pdf_bytes
@@ -141,7 +166,7 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
         rightMargin=0.8*cm,
         leftMargin=0.8*cm,
         topMargin=0.3*cm,
-        bottomMargin=0.3*cm
+        bottomMargin=1.0*cm  # Aumentato per fare spazio al footer
     )
     elements = []
     styles = getSampleStyleSheet()
@@ -230,6 +255,11 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
 
             for row_idx, c_num in enumerate(crews_to_render):
                 r = row_idx + 2
+                
+                # Aggiunta linea spessa fine terzina
+                if c_num % 3 == 0 and c_num != crews_to_render[-1]:
+                    base_style.append(('LINEBELOW', (0, r), (-1, r), 1.2, colors.black))
+
                 shift = get_shift_for_crew(c_num, d)
                 stato = shift["stato"]
 
@@ -249,7 +279,7 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
         if month < 12:
             elements.append(PageBreak())
 
-    doc.build(elements)
+    doc.build(elements, onFirstPage=add_footer, onLaterPages=add_footer)
     pdf_bytes = buffer.getvalue()
     buffer.close()
     return pdf_bytes
