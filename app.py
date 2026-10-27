@@ -372,7 +372,12 @@ html_table.append('</tr></thead><tbody>')
 
 for c_num in crews_to_render:
     label_text = f"Eq. {c_num} 🎱" if c_num == 8 else f"Eq. {c_num}"
-    html_table.append(f'<tr><td class="crew-label-cell">{label_text}</td>')
+    
+    # Applica un bordo spesso HTML alla riga se è l'ultima della terzina (e non è l'ultimo renderizzato)
+    is_end_of_terzina = (c_num % 3 == 0 and c_num != crews_to_render[-1])
+    td_bottom_border = ' border-bottom: 2px solid #000 !important;' if is_end_of_terzina else ''
+    
+    html_table.append(f'<tr><td class="crew-label-cell" style="{td_bottom_border}">{label_text}</td>')
     for d in dates_to_show:
         shift = get_shift_for_crew(c_num, d)
         mezzo = shift["mezzo"]
@@ -393,7 +398,7 @@ for c_num in crews_to_render:
         stato_html = f'<span class="stato-text">{stato}</span>'
         tooltip_text = build_cell_tooltip(c_num, d, mezzo, stato)
         html_table.append(
-            f'<td class="{" ".join(td_classes)}" title="{tooltip_text}">'
+            f'<td class="{" ".join(td_classes)}" title="{tooltip_text}" style="{td_bottom_border}">'
             f'<div class="cell-content">{mezzo_html}{stato_html}</div>'
             f'</td>'
         )
