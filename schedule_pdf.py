@@ -14,7 +14,7 @@ def add_footer(canvas, doc):
     Funzione per disegnare il piè di pagina (legenda e timestamp) in tutte le pagine PDF.
     """
     canvas.saveState()
-    canvas.setFont('Helvetica', 6.5)
+    canvas.setFont('Helvetica', 7)
     canvas.setStrokeColorRGB(0.4, 0.4, 0.4)
     canvas.setFillColorRGB(0.4, 0.4, 0.4)
     
@@ -40,17 +40,17 @@ def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color
         pagesize=landscape(A4),
         rightMargin=0.8*cm,
         leftMargin=0.8*cm,
-        topMargin=0.2*cm,      # Ridotto ulteriormente
-        bottomMargin=0.9*cm    # Spazio per il footer
+        topMargin=0.4*cm,
+        bottomMargin=1.1*cm  # Spazio per il footer
     )
     elements = []
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
         'CustomTitle',
         parent=styles['Heading1'],
-        fontSize=10,         # Ridotto da 11 a 10
+        fontSize=12,
         alignment=1,
-        spaceAfter=2         # Ridotto lo spazio vuoto sotto il titolo
+        spaceAfter=6
     )
 
     elements.append(Paragraph(title_pdf, title_style))
@@ -95,16 +95,16 @@ def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color
 
     t = Table(data, colWidths=col_widths, repeatRows=2)
 
-    # Stile ultra-compatto: l'aggiunta di LEADING comprime lo spazio dell'invio a capo (\n)
+    # Stile bilanciato: font più grande, padding ripristinato, ma leading (interlinea) mantenuto compresso
     base_style = [
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('GRID', (0,0), (-1,-1), 0.5, colors.black),
         ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
-        ('FONTSIZE', (0,0), (-1,-1), 6.5), 
-        ('LEADING', (0,0), (-1,-1), 7.5),   # <--- Comprime lo spazio verticale delle doppie righe
-        ('TOPPADDING', (0,0), (-1,-1), 0),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+        ('FONTSIZE', (0,0), (-1,-1), 8.5),  # <-- Aumentato da 6.5 a 8.5
+        ('LEADING', (0,0), (-1,-1), 9.0),   # <-- Interlinea compressa proporzionalmente al font
+        ('TOPPADDING', (0,0), (-1,-1), 1.5), # <-- Ripristinato un po' di spazio vuoto sopra
+        ('BOTTOMPADDING', (0,0), (-1,-1), 1.5), # <-- Ripristinato un po' di spazio vuoto sotto
         ('FONTNAME', (0,0), (-1,1), 'Helvetica-Bold'),
         ('BACKGROUND', (0,0), (-1,1), colors.lightgrey if not is_color else colors.whitesmoke),
         ('BACKGROUND', (0,0), (0,-1), colors.lightgrey if not is_color else colors.whitesmoke),
@@ -123,13 +123,15 @@ def generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color
         else:
             if is_hol or is_semi:
                 base_style.append(('BOX', (c, 0), (c, 1), 1.5, colors.black))
+        
+        # Rimosso il riquadro per identificare il giorno odierno nelle stampe PDF
 
         for row_idx, c_num in enumerate(crews_to_render):
             r = row_idx + 2
             
             # Aggiunta linea spessa fine terzina
             if c_num % 3 == 0 and c_num != crews_to_render[-1]:
-                base_style.append(('LINEBELOW', (0, r), (-1, r), 1.2, colors.black))
+                base_style.append(('LINEBELOW', (0, r), (-1, r), 1.5, colors.black))
 
             shift = get_shift_for_crew(c_num, d)
             stato = shift["stato"]
@@ -164,17 +166,17 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
         pagesize=landscape(A4),
         rightMargin=0.8*cm,
         leftMargin=0.8*cm,
-        topMargin=0.2*cm,      # Ridotto
-        bottomMargin=0.9*cm    # Spazio footer
+        topMargin=0.4*cm,
+        bottomMargin=1.1*cm  # Spazio footer
     )
     elements = []
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
         'CustomTitle',
         parent=styles['Heading1'],
-        fontSize=10,         # Ridotto
+        fontSize=12,
         alignment=1,
-        spaceAfter=2         # Ridotto
+        spaceAfter=6
     )
     
     mesi_italiano = [
@@ -228,10 +230,10 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ('GRID', (0,0), (-1,-1), 0.5, colors.black),
             ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
-            ('FONTSIZE', (0,0), (-1,-1), 6.5),
-            ('LEADING', (0,0), (-1,-1), 7.5),   # <--- Comprime lo spazio verticale delle doppie righe
-            ('TOPPADDING', (0,0), (-1,-1), 0),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+            ('FONTSIZE', (0,0), (-1,-1), 8.5),
+            ('LEADING', (0,0), (-1,-1), 9.0),
+            ('TOPPADDING', (0,0), (-1,-1), 1.5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 1.5),
             ('FONTNAME', (0,0), (-1,1), 'Helvetica-Bold'),
             ('BACKGROUND', (0,0), (-1,1), colors.lightgrey if not is_color else colors.whitesmoke),
             ('BACKGROUND', (0,0), (0,-1), colors.lightgrey if not is_color else colors.whitesmoke),
@@ -255,7 +257,7 @@ def generate_annual_schedule_pdf(year: int, crews_to_render: list, is_color: boo
                 
                 # Aggiunta linea spessa fine terzina
                 if c_num % 3 == 0 and c_num != crews_to_render[-1]:
-                    base_style.append(('LINEBELOW', (0, r), (-1, r), 1.2, colors.black))
+                    base_style.append(('LINEBELOW', (0, r), (-1, r), 1.5, colors.black))
 
                 shift = get_shift_for_crew(c_num, d)
                 stato = shift["stato"]
