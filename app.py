@@ -292,7 +292,6 @@ with col_style:
     tracker_annual = "pdf_turno_annuale_colori" if is_color else "pdf_turno_annuale_bn"
 
 with col_btn_month:
-    # Spazio per mantenere allineati i bottoni
     st.markdown("<div style='font-size: 13px; margin-bottom: 4px;'>&nbsp;</div>", unsafe_allow_html=True)
     try:
         schedule_pdf_data = generate_schedule_bn_pdf(dates_to_show, crews_to_render, title_pdf, is_color)
@@ -333,6 +332,16 @@ with col_btn_year:
 # ---------------------------------------------------------
 # GENERAZIONE TABELLA HTML A VIDEO
 # ---------------------------------------------------------
+
+# Iniezione dello stile CSS personalizzato per la linea marcata di fine terzina sulla web-app
+st.markdown("""
+<style>
+.terzina-row td {
+    border-bottom: 2.5px solid #000 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 html_table = ['<div class="matrix-wrapper"><table class="matrix-table">']
 html_table.append('<thead><tr><th class="crew-label-cell th-corner-1">Giorno</th>')
 day_names_it = ["lu", "ma", "me", "gi", "ve", "sa", "do"]
@@ -373,11 +382,11 @@ html_table.append('</tr></thead><tbody>')
 for c_num in crews_to_render:
     label_text = f"Eq. {c_num} 🎱" if c_num == 8 else f"Eq. {c_num}"
     
-    # Applica un bordo spesso HTML alla riga se è l'ultima della terzina (e non è l'ultimo renderizzato)
+    # Assegna la classe CSS se è fine terzina
     is_end_of_terzina = (c_num % 3 == 0 and c_num != crews_to_render[-1])
-    td_bottom_border = ' border-bottom: 2px solid #000 !important;' if is_end_of_terzina else ''
+    tr_class = ' class="terzina-row"' if is_end_of_terzina else ''
     
-    html_table.append(f'<tr><td class="crew-label-cell" style="{td_bottom_border}">{label_text}</td>')
+    html_table.append(f'<tr{tr_class}><td class="crew-label-cell">{label_text}</td>')
     for d in dates_to_show:
         shift = get_shift_for_crew(c_num, d)
         mezzo = shift["mezzo"]
@@ -398,7 +407,7 @@ for c_num in crews_to_render:
         stato_html = f'<span class="stato-text">{stato}</span>'
         tooltip_text = build_cell_tooltip(c_num, d, mezzo, stato)
         html_table.append(
-            f'<td class="{" ".join(td_classes)}" title="{tooltip_text}" style="{td_bottom_border}">'
+            f'<td class="{" ".join(td_classes)}" title="{tooltip_text}">'
             f'<div class="cell-content">{mezzo_html}{stato_html}</div>'
             f'</td>'
         )
